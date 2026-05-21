@@ -4,6 +4,7 @@ import com.finploit.android.BuildConfig
 import com.finploit.android.data.api.AnalysisApi
 import com.finploit.android.data.api.AuthApi
 import com.finploit.android.data.api.AuthInterceptor
+import com.finploit.android.data.api.UnauthorizedInterceptor
 import com.finploit.android.data.api.FinanceApi
 import com.finploit.android.data.api.GrocerySearchApi
 import com.finploit.android.data.api.MealPlannerApi
@@ -34,7 +35,7 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideOkHttpClient(authInterceptor: AuthInterceptor): OkHttpClient {
+    fun provideOkHttpClient(authInterceptor: AuthInterceptor, unauthorizedInterceptor: UnauthorizedInterceptor): OkHttpClient {
         val logging = HttpLoggingInterceptor().apply {
             level = if (BuildConfig.DEBUG) HttpLoggingInterceptor.Level.HEADERS
                     else HttpLoggingInterceptor.Level.NONE
@@ -43,6 +44,7 @@ object NetworkModule {
         return OkHttpClient.Builder()
             .addInterceptor(authInterceptor)
             .addInterceptor(ResponseUnwrapInterceptor())
+            .addInterceptor(unauthorizedInterceptor)
             .addInterceptor(logging)
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(60, TimeUnit.SECONDS)
@@ -52,7 +54,7 @@ object NetworkModule {
     @Provides
     @Singleton
     @LongTimeout
-    fun provideLongTimeoutOkHttpClient(authInterceptor: AuthInterceptor): OkHttpClient {
+    fun provideLongTimeoutOkHttpClient(authInterceptor: AuthInterceptor, unauthorizedInterceptor: UnauthorizedInterceptor): OkHttpClient {
         val logging = HttpLoggingInterceptor().apply {
             level = if (BuildConfig.DEBUG) HttpLoggingInterceptor.Level.HEADERS
                     else HttpLoggingInterceptor.Level.NONE
@@ -61,6 +63,7 @@ object NetworkModule {
         return OkHttpClient.Builder()
             .addInterceptor(authInterceptor)
             .addInterceptor(ResponseUnwrapInterceptor())
+            .addInterceptor(unauthorizedInterceptor)
             .addInterceptor(logging)
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(180, TimeUnit.SECONDS)

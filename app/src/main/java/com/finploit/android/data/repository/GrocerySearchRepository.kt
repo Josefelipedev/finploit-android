@@ -19,6 +19,7 @@ class GrocerySearchRepository @Inject constructor(
     private var cachedEnrichedItems: Map<String, EnrichedShoppingItemDto> = emptyMap()
 
     fun getCachedEnrichedItems(): Map<String, EnrichedShoppingItemDto> = cachedEnrichedItems
+    fun clearCachedEnrichedItems() { cachedEnrichedItems = emptyMap() }
 
     suspend fun search(
         query: String,

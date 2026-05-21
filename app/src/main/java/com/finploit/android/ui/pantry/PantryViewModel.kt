@@ -21,6 +21,7 @@ data class PantryUiState(
     val quantityInput: String = "",
     val unitInput: String = "",
     val categoryInput: String = "",
+    val expiryInput: String = "", // ISO date string "YYYY-MM-DD" or empty
     val isSaving: Boolean = false,
     val error: String? = null,
     val snackbarMessage: String? = null,
@@ -55,21 +56,24 @@ class PantryViewModel @Inject constructor(
             quantityInput = item?.quantity?.let { if (it == it.toLong().toDouble()) it.toLong().toString() else "%.1f".format(it) } ?: "",
             unitInput = item?.unit ?: "",
             categoryInput = item?.category ?: "",
+            expiryInput = item?.expiresAt?.take(10) ?: "",
         )
     }
 
     fun closeDialog() {
-        _state.value = _state.value.copy(showAddDialog = false, editingItem = null, nameInput = "", quantityInput = "", unitInput = "", categoryInput = "")
+        _state.value = _state.value.copy(showAddDialog = false, editingItem = null, nameInput = "", quantityInput = "", unitInput = "", categoryInput = "", expiryInput = "")
     }
 
     fun setName(v: String) { _state.value = _state.value.copy(nameInput = v) }
     fun setQuantity(v: String) { _state.value = _state.value.copy(quantityInput = v.filter { it.isDigit() || it == '.' }.take(6)) }
     fun setUnit(v: String) { _state.value = _state.value.copy(unitInput = v) }
     fun setCategory(v: String) { _state.value = _state.value.copy(categoryInput = v) }
+    fun setExpiry(v: String) { _state.value = _state.value.copy(expiryInput = v) }
 
     fun save() {
         val name = _state.value.nameInput.trim()
         if (name.isEmpty()) return
+        val editingItem = _state.value.editingItem
         viewModelScope.launch {
             _state.value = _state.value.copy(isSaving = true)
             val req = UpsertPantryItemRequest(
@@ -77,11 +81,16 @@ class PantryViewModel @Inject constructor(
                 quantity = _state.value.quantityInput.toDoubleOrNull(),
                 unit = _state.value.unitInput.trim().ifEmpty { null },
                 category = _state.value.categoryInput.trim().ifEmpty { null },
+                expiresAt = _state.value.expiryInput.trim().ifEmpty { null },
             )
-            repository.upsert(req)
+            // Use PATCH when editing an existing item (supports name changes)
+            val result = if (editingItem != null) repository.update(editingItem.id, req)
+                         else repository.upsert(req)
+            result
                 .onSuccess { saved ->
                     val existing = _state.value.items.toMutableList()
                     val idx = existing.indexOfFirst { it.id == saved.id }
+                        .takeIf { it >= 0 } ?: existing.indexOfFirst { editingItem != null && it.id == editingItem.id }
                     if (idx >= 0) existing[idx] = saved else existing.add(saved)
                     _state.value = _state.value.copy(isSaving = false, items = existing, snackbarMessage = "\"${saved.name}\" guardado no estoque.")
                     closeDialog()

@@ -6,6 +6,7 @@ data class PantryItemDto(
     val quantity: Double? = null,
     val unit: String? = null,
     val category: String? = null,
+    val expiresAt: String? = null,
 )
 
 data class UpsertPantryItemRequest(
@@ -13,4 +14,5 @@ data class UpsertPantryItemRequest(
     val quantity: Double? = null,
     val unit: String? = null,
     val category: String? = null,
+    val expiresAt: String? = null,
 )

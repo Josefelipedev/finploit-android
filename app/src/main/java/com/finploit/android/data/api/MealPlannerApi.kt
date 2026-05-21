@@ -14,6 +14,8 @@ import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.Path
 
+data class BatchToggleRequest(val itemIds: List<Int>)
+
 interface MealPlannerApi {
     @GET("meal-planner/schedule")
     suspend fun getSchedule(): List<ScheduleItemDto>
@@ -32,6 +34,9 @@ interface MealPlannerApi {
 
     @PATCH("meal-planner/item/{id}/toggle")
     suspend fun toggleItem(@Path("id") id: Int): MealShoppingItemDto
+
+    @PATCH("meal-planner/items/batch-toggle")
+    suspend fun batchToggleItems(@Body request: BatchToggleRequest)
 
     @GET("meal-planner/profile")
     suspend fun getProfile(): UserProfileDto

@@ -14,6 +14,8 @@ import com.finploit.android.data.repository.GrocerySearchRepository
 import com.finploit.android.data.repository.MealPlannerRepository
 import com.finploit.android.data.repository.ShoppingRepository
 import com.finploit.android.ui.theme.currencyConfigByCode
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -32,15 +34,13 @@ enum class BudgetPreset(val label: String, val description: String) {
     FREE("Sem limite", "IA decide"),
 }
 
-// Budget amounts per currency code
+// Budget amounts per currency code — only currencies present in the Prisma CurrencyType enum
 private val BUDGET_AMOUNTS = mapOf(
     "BRL" to mapOf(BudgetPreset.ECONOMY to 80.0, BudgetPreset.BALANCED to 150.0, BudgetPreset.PREMIUM to 280.0),
     "EUR" to mapOf(BudgetPreset.ECONOMY to 25.0, BudgetPreset.BALANCED to 50.0, BudgetPreset.PREMIUM to 90.0),
     "USD" to mapOf(BudgetPreset.ECONOMY to 30.0, BudgetPreset.BALANCED to 60.0, BudgetPreset.PREMIUM to 100.0),
     "GBP" to mapOf(BudgetPreset.ECONOMY to 25.0, BudgetPreset.BALANCED to 50.0, BudgetPreset.PREMIUM to 85.0),
-    "AOA" to mapOf(BudgetPreset.ECONOMY to 15000.0, BudgetPreset.BALANCED to 30000.0, BudgetPreset.PREMIUM to 60000.0),
-    "MZN" to mapOf(BudgetPreset.ECONOMY to 1500.0, BudgetPreset.BALANCED to 3000.0, BudgetPreset.PREMIUM to 6000.0),
-    "CHF" to mapOf(BudgetPreset.ECONOMY to 50.0, BudgetPreset.BALANCED to 100.0, BudgetPreset.PREMIUM to 180.0),
+    "JPY" to mapOf(BudgetPreset.ECONOMY to 4000.0, BudgetPreset.BALANCED to 8000.0, BudgetPreset.PREMIUM to 15000.0),
 )
 
 fun BudgetPreset.amountForCurrency(currencyCode: String): Double? =
@@ -74,6 +74,15 @@ data class MealPlannerUiState(
     val profileWeight: String = "",
     val profileActivityLevel: String = "moderate",
     val isSavingProfile: Boolean = false,
+    // Dietary preferences & meal prep
+    val dietaryPreferences: Set<String> = emptySet(),
+    val mealPrepMode: Boolean = false,
+    // Eaten meals diary: key = "${planId}_${dayOfWeek}_${mealType}"
+    val eatenMeals: Set<String> = emptySet(),
+    // Meal ratings: key = same, value 1=thumbsUp / -1=thumbsDown
+    val mealRatings: Map<String, Int> = emptyMap(),
+    // Prep time filter: null=all, 15=≤15min, 30=≤30min
+    val prepTimeFilter: Int? = null,
 )
 
 enum class MealTab { PLAN, SHOPPING, SCHEDULE, HISTORY }
@@ -87,6 +96,8 @@ class MealPlannerViewModel @Inject constructor(
     private val preferencesRepository: UserPreferencesRepository,
 ) : ViewModel() {
 
+    private val gson = Gson()
+
     val currencyCode: StateFlow<String> = preferencesRepository.currencyCode
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "BRL")
 
@@ -99,10 +110,32 @@ class MealPlannerViewModel @Inject constructor(
         if (cached.isNotEmpty()) {
             _uiState.value = _uiState.value.copy(enrichedItems = cached)
         }
+        // Reads DataStore preferences (budget, diary, ratings) independently of load().
+        // Fields touched here (budget, eatenMeals, mealRatings, prepTimeFilter, mealPrepMode) are
+        // disjoint from those set by load() (plan, schedule, profile), so there is no race condition.
         viewModelScope.launch {
             val savedBudget = preferencesRepository.budgetPreset.first()
             val preset = BudgetPreset.entries.find { it.name == savedBudget } ?: BudgetPreset.BALANCED
-            _uiState.value = _uiState.value.copy(budget = preset)
+            val eatenMealsJson = preferencesRepository.eatenMeals.first()
+            val ratingsJson = preferencesRepository.mealRatings.first()
+            val prepTimeStr = preferencesRepository.prepTimeFilter.first()
+            val prepMode = preferencesRepository.mealPrepMode.first()
+            val eatenSet: Set<String> = try {
+                val type = object : TypeToken<List<String>>() {}.type
+                gson.fromJson<List<String>>(eatenMealsJson, type)?.toSet() ?: emptySet()
+            } catch (_: Exception) { emptySet() }
+            val ratingsMap: Map<String, Int> = try {
+                val type = object : TypeToken<Map<String, Int>>() {}.type
+                gson.fromJson<Map<String, Int>>(ratingsJson, type) ?: emptyMap()
+            } catch (_: Exception) { emptyMap() }
+            val prepTimeFilter = prepTimeStr.toIntOrNull()
+            _uiState.value = _uiState.value.copy(
+                budget = preset,
+                eatenMeals = eatenSet,
+                mealRatings = ratingsMap,
+                prepTimeFilter = prepTimeFilter,
+                mealPrepMode = prepMode,
+            )
         }
         load()
     }
@@ -125,6 +158,7 @@ class MealPlannerViewModel @Inject constructor(
                 profileHeight = profile?.height?.let { "%.0f".format(it) } ?: "",
                 profileWeight = profile?.weight?.let { "%.1f".format(it) } ?: "",
                 profileActivityLevel = profile?.activityLevel ?: "moderate",
+                dietaryPreferences = profile?.dietaryPreferences?.toSet() ?: emptySet(),
             )
         }
     }
@@ -158,11 +192,14 @@ class MealPlannerViewModel @Inject constructor(
                 currencyCode = code,
                 currencySymbol = cfg.symbol,
                 currencyLocale = "${cfg.locale.language}_${cfg.locale.country}",
+                mealPrepMode = _uiState.value.mealPrepMode,
             )
                 .onSuccess { plan ->
+                    grocerySearchRepository.clearCachedEnrichedItems()
                     _uiState.value = _uiState.value.copy(
                         isGenerating = false,
                         plan = plan,
+                        enrichedItems = emptyMap(),
                         snackbarMessage = "Cardápio gerado com sucesso! 🥗",
                     )
                 }
@@ -274,15 +311,15 @@ class MealPlannerViewModel @Inject constructor(
 
     fun saveProfile() {
         val s = _uiState.value
-        val h = s.profileHeight.toFloatOrNull()
-        val w = s.profileWeight.toFloatOrNull()
+        val h = s.profileHeight.toFloatOrNull()?.takeIf { it > 0f }
+        val w = s.profileWeight.toFloatOrNull()?.takeIf { it > 0f }
         if (h == null && w == null) {
-            _uiState.value = s.copy(snackbarMessage = "Preencha pelo menos a altura ou o peso.")
+            _uiState.value = s.copy(snackbarMessage = "Preencha pelo menos a altura ou o peso com valor válido.")
             return
         }
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isSavingProfile = true)
-            repository.saveProfile(UserProfileRequest(height = h, weight = w, activityLevel = s.profileActivityLevel))
+            repository.saveProfile(UserProfileRequest(height = h, weight = w, activityLevel = s.profileActivityLevel, dietaryPreferences = s.dietaryPreferences.toList()))
                 .onSuccess {
                     _uiState.value = _uiState.value.copy(
                         isSavingProfile = false,
@@ -298,15 +335,58 @@ class MealPlannerViewModel @Inject constructor(
         }
     }
 
+    fun toggleDietaryPreference(pref: String) {
+        val current = _uiState.value.dietaryPreferences
+        _uiState.value = _uiState.value.copy(
+            dietaryPreferences = if (pref in current) current - pref else current + pref,
+        )
+    }
+
+    fun setMealPrepMode(enabled: Boolean) {
+        _uiState.value = _uiState.value.copy(mealPrepMode = enabled)
+        viewModelScope.launch { preferencesRepository.setMealPrepMode(enabled) }
+    }
+
+    fun toggleEatenMeal(key: String) {
+        val current = _uiState.value.eatenMeals
+        val updated = if (key in current) current - key else current + key
+        _uiState.value = _uiState.value.copy(eatenMeals = updated)
+        viewModelScope.launch {
+            preferencesRepository.setEatenMeals(gson.toJson(updated.toList()))
+        }
+    }
+
+    fun rateMeal(key: String, rating: Int) {
+        val updated = _uiState.value.mealRatings + (key to rating)
+        _uiState.value = _uiState.value.copy(mealRatings = updated)
+        viewModelScope.launch {
+            preferencesRepository.setMealRatings(gson.toJson(updated))
+        }
+    }
+
+    fun setPrepTimeFilter(minutes: Int?) {
+        _uiState.value = _uiState.value.copy(prepTimeFilter = minutes)
+        viewModelScope.launch {
+            preferencesRepository.setPrepTimeFilter(minutes?.toString() ?: "")
+        }
+    }
+
     fun deletePlan(planId: Int) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isDeletingPlan = planId)
             repository.deletePlan(planId)
                 .onSuccess {
+                    val prefix = "${planId}_"
+                    val newEaten = _uiState.value.eatenMeals.filterNot { it.startsWith(prefix) }.toSet()
+                    val newRatings = _uiState.value.mealRatings.filterKeys { !it.startsWith(prefix) }
+                    preferencesRepository.setEatenMeals(gson.toJson(newEaten.toList()))
+                    preferencesRepository.setMealRatings(gson.toJson(newRatings))
                     _uiState.value = _uiState.value.copy(
                         isDeletingPlan = null,
                         allPlans = _uiState.value.allPlans.filter { it.id != planId },
                         plan = if (_uiState.value.plan?.id == planId) null else _uiState.value.plan,
+                        eatenMeals = newEaten,
+                        mealRatings = newRatings,
                         snackbarMessage = "Plano apagado.",
                     )
                 }
@@ -324,10 +404,14 @@ class MealPlannerViewModel @Inject constructor(
             _uiState.value = _uiState.value.copy(isClearingHistory = true)
             repository.clearHistory()
                 .onSuccess {
+                    preferencesRepository.setEatenMeals("[]")
+                    preferencesRepository.setMealRatings("{}")
                     _uiState.value = _uiState.value.copy(
                         isClearingHistory = false,
                         allPlans = emptyList(),
                         plan = null,
+                        eatenMeals = emptySet(),
+                        mealRatings = emptyMap(),
                         snackbarMessage = "Histórico apagado com sucesso.",
                     )
                 }
@@ -387,9 +471,20 @@ class MealPlannerViewModel @Inject constructor(
     }
 
     fun buyAllInCategory(category: String) {
-        val items = _uiState.value.plan?.shoppingList?.items
-            ?.filter { !it.purchased && it.category == category } ?: return
-        items.forEach { toggleItem(it.id) }
+        val ids = _uiState.value.plan?.shoppingList?.items
+            ?.filter { !it.purchased && it.category == category }
+            ?.map { it.id } ?: return
+        if (ids.isEmpty()) return
+        viewModelScope.launch {
+            repository.batchToggleItems(ids).onSuccess {
+                val plan = _uiState.value.plan ?: return@onSuccess
+                val newItems = plan.shoppingList?.items?.map { item ->
+                    if (item.id in ids) item.copy(purchased = true) else item
+                }
+                val newList = plan.shoppingList?.copy(items = newItems ?: emptyList())
+                _uiState.value = _uiState.value.copy(plan = plan.copy(shoppingList = newList))
+            }
+        }
     }
 
     fun clearSnackbar() {

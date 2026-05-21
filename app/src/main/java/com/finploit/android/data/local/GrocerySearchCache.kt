@@ -12,6 +12,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 private const val TTL_MS = 86_400_000L // 24 hours
+private const val MAX_ENTRIES = 40
 
 @Singleton
 class GrocerySearchCache @Inject constructor(
@@ -47,9 +48,15 @@ class GrocerySearchCache @Inject constructor(
                 mutableMapOf()
             }
             val now = System.currentTimeMillis()
-            // Prune expired entries to keep DataStore lean
             existing.entries.removeIf { now - it.value.timestamp > TTL_MS }
             existing[key] = CacheEntry(timestamp = now, data = data)
+            // Trim to max size keeping newest entries
+            if (existing.size > MAX_ENTRIES) {
+                existing.entries
+                    .sortedByDescending { it.value.timestamp }
+                    .drop(MAX_ENTRIES)
+                    .forEach { existing.remove(it.key) }
+            }
             prefs[KEY] = gson.toJson(existing)
         }
     }

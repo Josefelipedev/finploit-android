@@ -1,6 +1,7 @@
 package com.finploit.android.ui.pantry
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -88,11 +89,13 @@ fun PantryScreen(viewModel: PantryViewModel, onBack: () -> Unit) {
             quantity = state.quantityInput,
             unit = state.unitInput,
             category = state.categoryInput,
+            expiryInput = state.expiryInput,
             isSaving = state.isSaving,
             onNameChange = viewModel::setName,
             onQuantityChange = viewModel::setQuantity,
             onUnitChange = viewModel::setUnit,
             onCategoryChange = viewModel::setCategory,
+            onExpiryChange = viewModel::setExpiry,
             onConfirm = viewModel::save,
             onDismiss = viewModel::closeDialog,
         )
@@ -216,6 +219,30 @@ private fun PantryItemRow(item: PantryItemDto, onEdit: () -> Unit, onRemove: () 
                     }
                 }
                 if (detail.isNotEmpty()) Text(detail, color = TextDisabled, fontSize = 12.sp)
+                // Expiry badge
+                item.expiresAt?.let { expiry ->
+                    val daysUntil: Long? = try {
+                        val now = java.time.LocalDate.now()
+                        val expDate = java.time.LocalDate.parse(expiry.take(10))
+                        now.until(expDate, java.time.temporal.ChronoUnit.DAYS)
+                    } catch (e: Exception) { null }
+                    if (daysUntil != null) {
+                        val (color, text) = when {
+                            daysUntil <= 0 -> Color(0xFFEF5350) to "Expirado"
+                            daysUntil <= 2 -> Color(0xFFEF5350) to "Expira em ${daysUntil}d"
+                            daysUntil <= 5 -> Color(0xFFFFD740) to "${daysUntil}d"
+                            else -> TextDisabled to "${daysUntil}d"
+                        }
+                        Spacer(Modifier.height(3.dp))
+                        Box(
+                            modifier = Modifier.clip(RoundedCornerShape(4.dp))
+                                .background(color.copy(alpha = 0.12f))
+                                .padding(horizontal = 4.dp, vertical = 1.dp),
+                        ) {
+                            Text(text, color = color, fontSize = 10.sp)
+                        }
+                    }
+                }
             }
             IconButton(onClick = onRemove) {
                 Icon(Icons.Default.Delete, contentDescription = "Remover", tint = Color(0xFFEF5350).copy(alpha = 0.7f), modifier = Modifier.size(18.dp))
@@ -232,11 +259,13 @@ private fun AddPantryItemDialog(
     quantity: String,
     unit: String,
     category: String,
+    expiryInput: String,
     isSaving: Boolean,
     onNameChange: (String) -> Unit,
     onQuantityChange: (String) -> Unit,
     onUnitChange: (String) -> Unit,
     onCategoryChange: (String) -> Unit,
+    onExpiryChange: (String) -> Unit,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -299,6 +328,22 @@ private fun AddPantryItemDialog(
                             selected = category == cat,
                             onClick = { onCategoryChange(if (category == cat) "" else cat) },
                             label = { Text(cat, fontSize = 12.sp) },
+                            colors = chipColors,
+                        )
+                    }
+                }
+                // Expiry date
+                Text("Validade (opcional)", color = TextSecondary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                Row(
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    listOf("2 dias" to 2, "3 dias" to 3, "5 dias" to 5, "1 semana" to 7, "2 semanas" to 14, "1 mês" to 30).forEach { (label, days) ->
+                        val expiryDate = java.time.LocalDate.now().plusDays(days.toLong()).toString()
+                        FilterChip(
+                            selected = expiryInput == expiryDate,
+                            onClick = { onExpiryChange(if (expiryInput == expiryDate) "" else expiryDate) },
+                            label = { Text(label, fontSize = 12.sp) },
                             colors = chipColors,
                         )
                     }

@@ -1,5 +1,6 @@
 package com.finploit.android.data.repository
 
+import com.finploit.android.data.api.BatchToggleRequest
 import com.finploit.android.data.api.MealPlannerApi
 import com.finploit.android.data.dto.GeneratePlanRequest
 import com.finploit.android.data.dto.MealPlanDto
@@ -32,8 +33,8 @@ class MealPlannerRepository @Inject constructor(
         else throw e
     }
 
-    suspend fun generatePlan(budget: Double? = null, currencyCode: String? = null, currencySymbol: String? = null, currencyLocale: String? = null): Result<MealPlanDto> = runCatching {
-        api.generatePlan(GeneratePlanRequest(budget, currencyCode, currencySymbol, currencyLocale))
+    suspend fun generatePlan(budget: Double? = null, currencyCode: String? = null, currencySymbol: String? = null, currencyLocale: String? = null, mealPrepMode: Boolean? = null): Result<MealPlanDto> = runCatching {
+        api.generatePlan(GeneratePlanRequest(budget, currencyCode, currencySymbol, currencyLocale, mealPrepMode))
     }.recoverCatching { e ->
         if (e is retrofit2.HttpException && e.code() == 404)
             throw Exception("Funcionalidade não disponível no servidor. Atualize o backend.")
@@ -41,6 +42,8 @@ class MealPlannerRepository @Inject constructor(
     }
 
     suspend fun toggleItem(id: Int): Result<MealShoppingItemDto> = runCatching { api.toggleItem(id) }
+
+    suspend fun batchToggleItems(itemIds: List<Int>): Result<Unit> = runCatching { api.batchToggleItems(BatchToggleRequest(itemIds)) }
 
     suspend fun getAllPlans(): Result<List<MealPlanDto>> = runCatching { api.getAllPlans() }
 

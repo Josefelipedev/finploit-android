@@ -63,8 +63,15 @@ data class MealShoppingListDto(
     val id: Int,
     val totalEstimate: Double?,
     val notified: Boolean,
-    val items: List<MealShoppingItemDto>,
+    val items: List<MealShoppingItemDto> = emptyList(),
+    // History-only fields (items list is omitted in getAllPlans for performance)
+    val totalItems: Int? = null,
+    val purchasedCount: Int? = null,
 )
+
+fun MealShoppingItemDto.parsedUsedInDays(): List<Int> = try {
+    com.google.gson.Gson().fromJson(usedInDays ?: "[]", Array<Int>::class.java)?.toList() ?: emptyList()
+} catch (_: Exception) { emptyList() }
 
 data class MealPlanDto(
     val id: Int,
@@ -80,16 +87,19 @@ data class GeneratePlanRequest(
     val currencyCode: String? = null,
     val currencySymbol: String? = null,
     val currencyLocale: String? = null,
+    val mealPrepMode: Boolean? = null,
 )
 
 data class UserProfileDto(
     val height: Float? = null,
     val weight: Float? = null,
     val activityLevel: String? = null,
+    val dietaryPreferences: List<String>? = null,
 )
 
 data class UserProfileRequest(
     val height: Float? = null,
     val weight: Float? = null,
     val activityLevel: String? = null,
+    val dietaryPreferences: List<String>? = null,
 )
