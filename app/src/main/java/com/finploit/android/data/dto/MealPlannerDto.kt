@@ -56,6 +56,7 @@ data class MealShoppingItemDto(
     val category: String?,
     val purchased: Boolean,
     val usedInDays: String? = null, // JSON string e.g. "[0,2,4]"
+    val packageNote: String? = null,
 )
 
 data class MealShoppingListDto(

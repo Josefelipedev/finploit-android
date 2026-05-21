@@ -1132,6 +1132,21 @@ private fun ShoppingItemRow(
                     Spacer(Modifier.height(3.dp))
                     Text("✦ $usedCount dias", color = Color(0xFF64B5F6), fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
                 }
+                // Package note
+                if (!item.purchased && !item.packageNote.isNullOrBlank()) {
+                    Spacer(Modifier.height(4.dp))
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(Color(0xFFFFD740).copy(alpha = 0.08f))
+                            .border(1.dp, Color(0xFFFFD740).copy(alpha = 0.25f), RoundedCornerShape(6.dp))
+                            .padding(horizontal = 6.dp, vertical = 3.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text("📦 ", fontSize = 10.sp)
+                        Text(item.packageNote, color = Color(0xFFFFD740).copy(alpha = 0.85f), fontSize = 10.sp, lineHeight = 14.sp)
+                    }
+                }
                 // Inline scraped price badge
                 if (!item.purchased && enriched?.bestPrice != null && enriched.bestSource != null) {
                     Spacer(Modifier.height(4.dp))
