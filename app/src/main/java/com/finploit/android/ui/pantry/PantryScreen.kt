@@ -2,6 +2,7 @@ package com.finploit.android.ui.pantry
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -29,6 +31,8 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
@@ -245,6 +249,14 @@ private fun AddPantryItemDialog(
         unfocusedTextColor = TextPrimary,
         cursorColor = GreenPrimary,
     )
+    val chipColors = FilterChipDefaults.filterChipColors(
+        selectedContainerColor = GreenPrimary.copy(alpha = 0.15f),
+        selectedLabelColor = GreenPrimary,
+        labelColor = TextSecondary,
+    )
+    val predefinedUnits = listOf("g", "kg", "ml", "L", "un", "fatias", "colheres", "chávena", "pacote")
+    val predefinedCategories = listOf("Proteína", "Vegetal", "Fruta", "Grãos", "Laticínio", "Condimento", "Bebida", "Outro")
+
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = CardBackground,
@@ -252,12 +264,45 @@ private fun AddPantryItemDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedTextField(value = name, onValueChange = onNameChange, label = { Text("Ingrediente *") }, modifier = Modifier.fillMaxWidth(), colors = fieldColors, singleLine = true)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(value = quantity, onValueChange = onQuantityChange, label = { Text("Qtd.") }, modifier = Modifier.weight(1f), colors = fieldColors, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
-                    OutlinedTextField(value = unit, onValueChange = onUnitChange, label = { Text("Unidade") }, modifier = Modifier.weight(1f), colors = fieldColors, singleLine = true)
+                OutlinedTextField(
+                    value = quantity,
+                    onValueChange = onQuantityChange,
+                    label = { Text("Quantidade") },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = fieldColors,
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                )
+                // Unit chips
+                Text("Unidade", color = TextSecondary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                Row(
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    predefinedUnits.forEach { u ->
+                        FilterChip(
+                            selected = unit == u,
+                            onClick = { onUnitChange(if (unit == u) "" else u) },
+                            label = { Text(u, fontSize = 12.sp) },
+                            colors = chipColors,
+                        )
+                    }
                 }
-                OutlinedTextField(value = category, onValueChange = onCategoryChange, label = { Text("Categoria (opcional)") }, modifier = Modifier.fillMaxWidth(), colors = fieldColors, singleLine = true)
-                Text("Ex: Proteína, Vegetal, Fruta, Grãos", color = TextDisabled, fontSize = 11.sp)
+                // Category chips
+                Text("Categoria", color = TextSecondary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                Row(
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    predefinedCategories.forEach { cat ->
+                        FilterChip(
+                            selected = category == cat,
+                            onClick = { onCategoryChange(if (category == cat) "" else cat) },
+                            label = { Text(cat, fontSize = 12.sp) },
+                            colors = chipColors,
+                        )
+                    }
+                }
             }
         },
         confirmButton = {

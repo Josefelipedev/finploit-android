@@ -94,6 +94,11 @@ class MealPlannerViewModel @Inject constructor(
     val uiState: StateFlow<MealPlannerUiState> = _uiState.asStateFlow()
 
     init {
+        // Restore cached enriched prices so they survive bottom-nav ViewModel recreation
+        val cached = grocerySearchRepository.getCachedEnrichedItems()
+        if (cached.isNotEmpty()) {
+            _uiState.value = _uiState.value.copy(enrichedItems = cached)
+        }
         viewModelScope.launch {
             val savedBudget = preferencesRepository.budgetPreset.first()
             val preset = BudgetPreset.entries.find { it.name == savedBudget } ?: BudgetPreset.BALANCED
@@ -347,10 +352,11 @@ class MealPlannerViewModel @Inject constructor(
 
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isEnrichingPrices = true)
+            val postalCode = preferencesRepository.postalCode.first()
             val enrichItems = items.map {
                 EnrichItem(it.name, it.quantity, it.unit, it.estimatedPrice ?: 0.0)
             }
-            grocerySearchRepository.enrichItems(enrichItems)
+            grocerySearchRepository.enrichItems(enrichItems, listOf("continente", "auchan", "pingodoce"), postalCode)
                 .onSuccess { enriched ->
                     val map = enriched.associateBy { it.name.trim().lowercase() }
                     val found = enriched.count { it.bestPrice != null }

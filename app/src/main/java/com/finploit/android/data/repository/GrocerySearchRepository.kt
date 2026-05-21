@@ -15,6 +15,11 @@ class GrocerySearchRepository @Inject constructor(
     private val api: GrocerySearchApi,
     private val cache: GrocerySearchCache,
 ) {
+    // In-memory cache survives ViewModel recreation within the same app session
+    private var cachedEnrichedItems: Map<String, EnrichedShoppingItemDto> = emptyMap()
+
+    fun getCachedEnrichedItems(): Map<String, EnrichedShoppingItemDto> = cachedEnrichedItems
+
     suspend fun search(
         query: String,
         supermarkets: List<String>? = null,
@@ -37,6 +42,10 @@ class GrocerySearchRepository @Inject constructor(
         postalCode: String? = null,
     ): Result<List<EnrichedShoppingItemDto>> = runCatching {
         api.enrich(EnrichRequest(items, supermarkets, postalCode))
+    }.also { result ->
+        result.onSuccess { enriched ->
+            cachedEnrichedItems = enriched.associateBy { it.name.trim().lowercase() }
+        }
     }
 
     suspend fun getStoresNearby(
