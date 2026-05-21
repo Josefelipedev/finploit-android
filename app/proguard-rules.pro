@@ -1,0 +1,6 @@
+-keep class com.finploit.android.data.dto.** { *; }
+-keep class com.google.android.libraries.identity.googleid.** { *; }
+-keepattributes Signature
+-keepattributes *Annotation*
+-dontwarn okhttp3.**
+-dontwarn retrofit2.**
