@@ -1,6 +1,7 @@
 package com.finploit.android.ui.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -25,6 +26,18 @@ fun AppNavGraph(
     loginViewModel: LoginViewModel = hiltViewModel(),
 ) {
     val isLoggedIn by loginViewModel.isLoggedIn.collectAsStateWithLifecycle()
+
+    // React to 401 / session expiry: navigate to Login whenever isLoggedIn becomes false
+    LaunchedEffect(isLoggedIn) {
+        if (!isLoggedIn) {
+            val current = navController.currentDestination?.route
+            if (current != Route.Login.path && current != Route.Register.path) {
+                navController.navigate(Route.Login.path) {
+                    popUpTo(0) { inclusive = true }
+                }
+            }
+        }
+    }
 
     NavHost(
         navController = navController,
@@ -59,9 +72,7 @@ fun AppNavGraph(
         composable(Route.Main.path) {
             MainScreen(
                 onLogout = {
-                    navController.navigate(Route.Login.path) {
-                        popUpTo(Route.Main.path) { inclusive = true }
-                    }
+                    loginViewModel.isLoggedIn.value = false
                 }
             )
         }

@@ -2,6 +2,7 @@ package com.finploit.android.ui.auth
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.finploit.android.data.api.UnauthorizedEventBus
 import com.finploit.android.data.repository.AuthRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,12 +20,22 @@ data class LoginUiState(
 @HiltViewModel
 class LoginViewModel @Inject constructor(
     private val authRepository: AuthRepository,
+    private val unauthorizedEventBus: UnauthorizedEventBus,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(LoginUiState())
     val uiState: StateFlow<LoginUiState> = _uiState.asStateFlow()
 
     val isLoggedIn = MutableStateFlow(authRepository.isLoggedIn())
+
+    init {
+        // React to 401 responses from any API call: force logout
+        viewModelScope.launch {
+            unauthorizedEventBus.events.collect {
+                isLoggedIn.value = false
+            }
+        }
+    }
 
     fun loginWithEmail(email: String, password: String) {
         viewModelScope.launch {
