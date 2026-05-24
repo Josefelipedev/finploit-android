@@ -31,7 +31,7 @@ class TokenStorage @Inject constructor(
 
     fun clearToken() = prefs.edit().remove(KEY_TOKEN).apply()
 
-    fun isLoggedIn(): Boolean = getToken() != null
+    fun isLoggedIn(): Boolean = prefs.getString(KEY_TOKEN, null) != null
 
     companion object {
         private const val KEY_TOKEN = "jwt_token"
