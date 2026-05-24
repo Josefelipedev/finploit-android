@@ -32,7 +32,12 @@ class LoginViewModel @Inject constructor(
         // React to 401 responses from any API call: force logout
         viewModelScope.launch {
             unauthorizedEventBus.events.collect {
-                isLoggedIn.value = false
+                // Guard: only act if the user is currently considered logged in.
+                // Prevents a stale event (from a parallel 401 that arrived just before
+                // the new token was saved) from logging the user out right after re-login.
+                if (isLoggedIn.value) {
+                    isLoggedIn.value = false
+                }
             }
         }
     }

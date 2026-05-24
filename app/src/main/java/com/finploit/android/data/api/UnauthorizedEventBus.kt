@@ -12,7 +12,10 @@ import javax.inject.Singleton
  */
 @Singleton
 class UnauthorizedEventBus @Inject constructor() {
-    private val _events = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    // extraBufferCapacity = 0: events that arrive while the collector is busy are dropped.
+    // This prevents stale 401 events (buffered from a previous expired session) from
+    // firing again after the user successfully re-logs in, which would cause a logout loop.
+    private val _events = MutableSharedFlow<Unit>(extraBufferCapacity = 0)
     val events: SharedFlow<Unit> = _events.asSharedFlow()
 
     /** Called from the OkHttp interceptor thread — tryEmit is thread-safe. */

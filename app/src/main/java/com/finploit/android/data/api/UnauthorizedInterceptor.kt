@@ -10,11 +10,18 @@ class UnauthorizedInterceptor @Inject constructor(
     private val unauthorizedEventBus: UnauthorizedEventBus,
 ) : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
-        val response = chain.proceed(chain.request())
+        val request = chain.request()
+        val response = chain.proceed(request)
         if (response.code == 401) {
-            tokenStorage.clearToken()
-            // Notify the app so it can navigate back to Login
-            unauthorizedEventBus.send()
+            // Compare the token that was sent with the one currently stored.
+            // If they differ, the user already re-logged in with a new token, so this
+            // 401 belongs to a stale request from the previous session — ignore it.
+            val sentToken = request.header("Authorization")
+            val currentToken = tokenStorage.getToken()?.let { "Bearer $it" }
+            if (sentToken != null && sentToken == currentToken) {
+                tokenStorage.clearToken()
+                unauthorizedEventBus.send()
+            }
         }
         return response
     }
