@@ -59,10 +59,10 @@ interface MealPlannerApi {
     suspend fun substituteMeal(@Path("dayId") dayId: Int, @Body request: SubstituteMealRequest): SubstituteMealResponse
 
     @GET("meal-planner/profile")
-    suspend fun getProfile(): UserProfileDto
+    suspend fun getProfile(): UserProfileDto?
 
     @PATCH("meal-planner/profile")
-    suspend fun saveProfile(@Body request: UserProfileRequest): UserProfileDto
+    suspend fun saveProfile(@Body request: UserProfileRequest): UserProfileDto?
 
     @DELETE("meal-planner/plans/{id}")
     suspend fun deletePlan(@Path("id") id: Int)

@@ -337,9 +337,20 @@ class MealPlannerViewModel @Inject constructor(
                     )
                 }
                 .onFailure { e ->
+                    val friendlyMsg = when {
+                        e is retrofit2.HttpException && e.code() == 503 ->
+                            "Serviço de IA temporariamente indisponível. Tente novamente em alguns minutos."
+                        e is retrofit2.HttpException && e.code() >= 500 ->
+                            "Erro no servidor ao gerar plano. Tente novamente."
+                        e is java.io.IOException ->
+                            "Sem ligação à internet. Verifique a sua rede e tente novamente."
+                        e.message?.contains("was null but response body") == true ->
+                            "Erro ao processar resposta do servidor. Tente novamente."
+                        else -> e.message ?: "Erro ao gerar plano"
+                    }
                     _uiState.value = _uiState.value.copy(
                         isGenerating = false,
-                        error = e.message ?: "Erro ao gerar plano",
+                        error = friendlyMsg,
                     )
                 }
         }
@@ -841,5 +852,9 @@ class MealPlannerViewModel @Inject constructor(
 
     fun clearSnackbar() {
         _uiState.value = _uiState.value.copy(snackbarMessage = null)
+    }
+
+    fun dismissError() {
+        _uiState.value = _uiState.value.copy(error = null)
     }
 }

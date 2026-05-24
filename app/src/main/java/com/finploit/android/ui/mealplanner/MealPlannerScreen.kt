@@ -180,6 +180,7 @@ fun MealPlannerScreen(
                         currencyCode = currencyCode,
                         onSelectBudget = viewModel::selectBudget,
                         onGenerate = viewModel::generatePlan,
+                        onDismissError = viewModel::dismissError,
                         schedule = state.schedule,
                         prepTimeFilter = state.prepTimeFilter,
                         onSetPrepTimeFilter = viewModel::setPrepTimeFilter,

@@ -54,14 +54,16 @@ class MealPlannerRepository @Inject constructor(
 
     suspend fun getPlanDays(planId: Int): Result<List<MealPlanDayDto>> = runCatching { api.getPlanDays(planId) }
 
-    suspend fun getProfile(): Result<UserProfileDto> = runCatching { api.getProfile() }
-        .recoverCatching { e ->
-            if (e is retrofit2.HttpException && e.code() == 404) UserProfileDto()
-            else throw e
-        }
+    suspend fun getProfile(): Result<UserProfileDto> = runCatching {
+        // Backend now always returns a profile object; null means no profile yet — treat as default.
+        api.getProfile() ?: UserProfileDto()
+    }.recoverCatching { e ->
+        if (e is retrofit2.HttpException && e.code() == 404) UserProfileDto()
+        else throw e
+    }
 
     suspend fun saveProfile(request: UserProfileRequest): Result<UserProfileDto> =
-        runCatching { api.saveProfile(request) }
+        runCatching { api.saveProfile(request) ?: UserProfileDto() }
 
     suspend fun deletePlan(id: Int): Result<Unit> = runCatching { api.deletePlan(id) }
 

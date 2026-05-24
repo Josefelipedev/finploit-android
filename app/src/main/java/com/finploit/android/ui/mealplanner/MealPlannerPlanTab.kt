@@ -23,6 +23,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -32,6 +34,8 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -71,6 +75,7 @@ internal fun PlanTab(
     currencyCode: String,
     onSelectBudget: (BudgetPreset) -> Unit,
     onGenerate: () -> Unit,
+    onDismissError: () -> Unit = {},
     schedule: List<ScheduleItemDto>,
     prepTimeFilter: Int? = null,
     onSetPrepTimeFilter: (Int?) -> Unit = {},
@@ -194,7 +199,21 @@ internal fun PlanTab(
         if (error != null) {
             item {
                 Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = ExpenseRed.copy(alpha = 0.12f))) {
-                    Text(error, color = ExpenseRed, modifier = Modifier.padding(14.dp), fontSize = 13.sp)
+                    Row(
+                        modifier = Modifier.padding(start = 14.dp, top = 4.dp, bottom = 4.dp, end = 4.dp).fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Text(
+                            error,
+                            color = ExpenseRed,
+                            fontSize = 13.sp,
+                            modifier = Modifier.weight(1f).padding(vertical = 10.dp),
+                        )
+                        IconButton(onClick = onDismissError, modifier = Modifier.size(32.dp)) {
+                            Icon(Icons.Default.Close, contentDescription = "Fechar erro", tint = ExpenseRed, modifier = Modifier.size(16.dp))
+                        }
+                    }
                 }
             }
         }
