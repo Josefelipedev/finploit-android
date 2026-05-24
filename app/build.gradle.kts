@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.hilt)
     alias(libs.plugins.ksp)
+    alias(libs.plugins.room)
 }
 
 android {
@@ -14,17 +15,27 @@ android {
         applicationId = "com.finploit.android"
         minSdk = 26
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.1.0"
+        versionCode = 3
+        versionName = "1.2.0"
 
         buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:5009/\"")
         buildConfigField("String", "GOOGLE_CLIENT_ID", "\"${System.getenv("GOOGLE_CLIENT_ID") ?: ""}\"")
+    }
+
+    signingConfigs {
+        create("release") {
+            storeFile = file("${rootProject.projectDir}/finploit-release.jks")
+            storePassword = System.getenv("KEYSTORE_PASS") ?: "finploit2026"
+            keyAlias = System.getenv("KEY_ALIAS") ?: "finploit"
+            keyPassword = System.getenv("KEY_PASS") ?: "finploit2026"
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 
@@ -52,6 +63,9 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+    }
+    room {
+        schemaDirectory("$projectDir/schemas")
     }
 }
 
@@ -102,6 +116,27 @@ dependencies {
     implementation(libs.work.runtime.ktx)
     implementation(libs.hilt.work)
     ksp(libs.hilt.work.compiler)
+
+    // Room (offline cache + budget limits)
+    implementation(libs.room.runtime)
+    implementation(libs.room.ktx)
+    ksp(libs.room.compiler)
+
+    // CameraX (receipt scan + barcode)
+    implementation(libs.camera.core)
+    implementation(libs.camera.camera2)
+    implementation(libs.camera.lifecycle)
+    implementation(libs.camera.view)
+
+    // ML Kit Barcode
+    implementation(libs.mlkit.barcode)
+
+    // Glance Widget
+    implementation(libs.glance.appwidget)
+    implementation(libs.glance.material3)
+
+    // Accompanist permissions
+    implementation(libs.accompanist.permissions)
 
     debugImplementation(libs.androidx.ui.tooling)
 }

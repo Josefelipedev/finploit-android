@@ -31,3 +31,9 @@ data class CategorySummaryDto(
 )
 
 data class InsightResponse(val insight: String)
+
+data class ReceiptAnalysisResult(
+    val amount: Double?,
+    val description: String?,
+    val category: String?,
+)

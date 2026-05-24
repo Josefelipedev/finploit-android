@@ -54,8 +54,8 @@ internal val DAY_NAMES = listOf("Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"
 internal val DAY_FULL_NAMES = listOf("Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado")
 internal val DAY_EMOJIS = listOf("🌅", "💼", "💼", "💼", "💼", "🎉", "😴")
 internal val DAY_COLORS = listOf(
-    Color(0xFF69F0AE), Color(0xFF00C853), Color(0xFF00BFA5),
-    Color(0xFF64B5F6), Color(0xFFFFD740), Color(0xFFFF8A65), Color(0xFFCE93D8),
+    Color(0xFF86EFAC), Color(0xFF4ADE80), Color(0xFF2DD4BF),
+    Color(0xFF93C5FD), Color(0xFFFDE047), Color(0xFFFDA4AF), Color(0xFFD8B4FE),
 )
 internal val DAY_TYPE_LABELS = mapOf("WORK" to "Trabalho", "OFF" to "Folga", "HALF_OFF" to "Meia-folga")
 internal val DAY_TYPE_COLORS = mapOf(

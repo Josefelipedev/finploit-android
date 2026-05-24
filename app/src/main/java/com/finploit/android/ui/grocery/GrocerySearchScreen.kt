@@ -33,8 +33,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ShoppingCart
@@ -150,7 +153,7 @@ fun GrocerySearchScreen(
             },
             navigationIcon = {
                 IconButton(onClick = onBack) {
-                    Icon(Icons.Default.ArrowBack, contentDescription = "Voltar", tint = TextSecondary)
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar", tint = TextSecondary)
                 }
             },
             actions = {
@@ -240,7 +243,7 @@ fun GrocerySearchScreen(
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            items(CHAIN_LABELS.entries.toList()) { (chain, label) ->
+            items(CHAIN_LABELS.entries.toList().filter { (chain, _) -> chain !in state.hiddenSupermarkets }) { (chain, label) ->
                 val selected = chain in state.selectedSupermarkets
                 val color = CHAIN_COLORS[chain] ?: GreenPrimary
                 FilterChip(
@@ -253,6 +256,16 @@ fun GrocerySearchScreen(
                             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
                         )
                     },
+                    trailingIcon = {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = "Ocultar $label",
+                            modifier = Modifier
+                                .size(14.dp)
+                                .clickable { viewModel.hideSupermarket(chain) },
+                            tint = if (selected) color.copy(alpha = 0.6f) else TextDisabled.copy(alpha = 0.5f),
+                        )
+                    },
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = color.copy(alpha = 0.18f),
                         selectedLabelColor = color,
@@ -262,23 +275,46 @@ fun GrocerySearchScreen(
                     ),
                 )
             }
+            if (state.hiddenSupermarkets.isNotEmpty()) {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(SurfaceDark)
+                            .border(1.dp, TextDisabled.copy(alpha = 0.3f), RoundedCornerShape(20.dp))
+                            .clickable { viewModel.restoreHiddenSupermarkets() }
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                    ) {
+                        Text(
+                            "+ ${state.hiddenSupermarkets.size} oculto${if (state.hiddenSupermarkets.size > 1) "s" else ""}",
+                            color = TextDisabled,
+                            fontSize = 12.sp,
+                        )
+                    }
+                }
+            }
         }
 
         AnimatedContent(
             targetState = state.mode,
             transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(200)) },
             label = "mode_content",
+            modifier = Modifier.weight(1f),
         ) { mode ->
             if (mode == GroceryMode.SEARCH) {
                 SearchContent(
                     state = state,
                     onSearch = { keyboard?.hide(); viewModel.search() },
                     onQueryChange = viewModel::setQuery,
+                    onStoreFilterChange = viewModel::setSearchStoreFilter,
                 )
             } else {
-                PlanPricesContent(state = state, onRetry = {
-                    viewModel.enrichPlanShoppingList(initialItems)
-                })
+                PlanPricesContent(
+                    state = state,
+                    onRetry = { viewModel.enrichPlanShoppingList(initialItems) },
+                    onSearchQueryChange = viewModel::setPlanSearchQuery,
+                    onStoreFilterChange = viewModel::setPlanStoreFilter,
+                )
             }
         }
     }
@@ -358,148 +394,225 @@ private fun SearchContent(
     state: GroceryUiState,
     onSearch: () -> Unit,
     onQueryChange: (String) -> Unit,
+    onStoreFilterChange: (String?) -> Unit,
 ) {
-    Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-        Spacer(Modifier.height(8.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            OutlinedTextField(
-                value = state.query,
-                onValueChange = onQueryChange,
-                modifier = Modifier.weight(1f),
-                placeholder = { Text("Ex: frango, arroz, ovos...", color = TextDisabled, fontSize = 13.sp) },
-                leadingIcon = {
-                    Icon(Icons.Default.Search, contentDescription = null, tint = GreenPrimary, modifier = Modifier.size(20.dp))
-                },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(onSearch = { onSearch() }),
-                shape = RoundedCornerShape(14.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = GreenPrimary,
-                    unfocusedBorderColor = CardElevated,
-                    focusedTextColor = TextPrimary,
-                    unfocusedTextColor = TextPrimary,
-                    cursorColor = GreenPrimary,
-                ),
-            )
-            Spacer(Modifier.width(8.dp))
-            Box(
-                modifier = Modifier
-                    .size(52.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(
-                        if (state.query.isNotBlank() && !state.isSearching)
-                            Brush.verticalGradient(listOf(GreenPrimary, IncomeGreen))
-                        else
-                            Brush.verticalGradient(listOf(SurfaceDark, SurfaceDark))
-                    )
-                    .clickable(enabled = state.query.isNotBlank() && !state.isSearching) { onSearch() },
-                contentAlignment = Alignment.Center,
+    Column(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+            Spacer(Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(
+                    value = state.query,
+                    onValueChange = onQueryChange,
+                    modifier = Modifier.weight(1f),
+                    placeholder = { Text("Ex: frango, arroz, ovos...", color = TextDisabled, fontSize = 13.sp) },
+                    leadingIcon = {
+                        Icon(Icons.Default.Search, contentDescription = null, tint = GreenPrimary, modifier = Modifier.size(20.dp))
+                    },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(onSearch = { onSearch() }),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = GreenPrimary,
+                        unfocusedBorderColor = CardElevated,
+                        focusedTextColor = TextPrimary,
+                        unfocusedTextColor = TextPrimary,
+                        cursorColor = GreenPrimary,
+                    ),
+                )
+                Spacer(Modifier.width(8.dp))
+                Box(
+                    modifier = Modifier
+                        .size(52.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(
+                            if (state.query.isNotBlank() && !state.isSearching)
+                                Brush.verticalGradient(listOf(GreenPrimary, IncomeGreen))
+                            else
+                                Brush.verticalGradient(listOf(SurfaceDark, SurfaceDark))
+                        )
+                        .clickable(enabled = state.query.isNotBlank() && !state.isSearching) { onSearch() },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (state.isSearching) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), color = GreenPrimary, strokeWidth = 2.dp)
+                    } else {
+                        Icon(
+                            Icons.Default.Search,
+                            contentDescription = "Pesquisar",
+                            tint = if (state.query.isNotBlank()) BackgroundDark else TextDisabled,
+                            modifier = Modifier.size(22.dp),
+                        )
+                    }
+                }
+            }
+
+            if (state.error != null) {
+                Spacer(Modifier.height(6.dp))
+                Text(state.error, color = ExpenseRed, fontSize = 12.sp, modifier = Modifier.padding(start = 4.dp))
+            }
+            Spacer(Modifier.height(4.dp))
+        }
+
+        // Store filter chips — only shown when there are results
+        if (state.products.isNotEmpty()) {
+            val stores = state.products.map { it.source }.distinct()
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                if (state.isSearching) {
-                    CircularProgressIndicator(modifier = Modifier.size(20.dp), color = GreenPrimary, strokeWidth = 2.dp)
-                } else {
-                    Icon(
-                        Icons.Default.Search,
-                        contentDescription = "Pesquisar",
-                        tint = if (state.query.isNotBlank()) BackgroundDark else TextDisabled,
-                        modifier = Modifier.size(22.dp),
+                item {
+                    FilterChip(
+                        selected = state.searchStoreFilter == null,
+                        onClick = { onStoreFilterChange(null) },
+                        label = { Text("Todos (${state.products.size})", fontSize = 12.sp) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = GreenPrimary.copy(alpha = 0.18f),
+                            selectedLabelColor = GreenPrimary,
+                            containerColor = SurfaceDark,
+                            labelColor = TextDisabled,
+                        ),
+                    )
+                }
+                items(stores) { store ->
+                    val count = state.products.count { it.source == store }
+                    val chipColor = CHAIN_COLORS[store] ?: GreenPrimary
+                    FilterChip(
+                        selected = state.searchStoreFilter == store,
+                        onClick = { onStoreFilterChange(if (state.searchStoreFilter == store) null else store) },
+                        label = {
+                            Text(
+                                "${CHAIN_EMOJIS[store] ?: ""} ${CHAIN_LABELS[store] ?: store} ($count)",
+                                fontSize = 12.sp,
+                                fontWeight = if (state.searchStoreFilter == store) FontWeight.SemiBold else FontWeight.Normal,
+                            )
+                        },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = chipColor.copy(alpha = 0.18f),
+                            selectedLabelColor = chipColor,
+                            containerColor = SurfaceDark,
+                            labelColor = TextDisabled,
+                        ),
                     )
                 }
             }
         }
 
-        if (state.error != null) {
-            Spacer(Modifier.height(6.dp))
-            Text(state.error, color = ExpenseRed, fontSize = 12.sp, modifier = Modifier.padding(start = 4.dp))
-        }
-        Spacer(Modifier.height(4.dp))
-    }
+        val displayProducts = if (state.searchStoreFilter != null)
+            state.products.filter { it.source == state.searchStoreFilter }
+        else
+            state.products
 
-    LazyColumn(
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        if (state.isSearching) {
-            item {
-                Box(Modifier.fillMaxWidth().padding(top = 48.dp), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        CircularProgressIndicator(color = GreenPrimary, modifier = Modifier.size(36.dp))
-                        Text("A pesquisar \"${state.lastQuery}\"...", color = TextDisabled, fontSize = 13.sp)
+        LazyColumn(
+            modifier = Modifier.weight(1f),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            if (state.isSearching) {
+                item {
+                    Box(Modifier.fillMaxWidth().padding(top = 48.dp), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            CircularProgressIndicator(color = GreenPrimary, modifier = Modifier.size(36.dp))
+                            Text("A pesquisar \"${state.lastQuery}\"...", color = TextDisabled, fontSize = 13.sp)
+                        }
                     }
                 }
-            }
-        } else if (state.hasSearched && state.products.isEmpty()) {
-            item {
-                Box(Modifier.fillMaxWidth().padding(top = 48.dp), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("🔍", fontSize = 48.sp)
-                        Spacer(Modifier.height(12.dp))
-                        Text("Sem resultados para \"${state.lastQuery}\"", color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                        Spacer(Modifier.height(6.dp))
-                        Text("Tenta outro nome ou verifica se o scraper está ativo", color = TextDisabled, fontSize = 12.sp)
+            } else if (state.hasSearched && displayProducts.isEmpty()) {
+                item {
+                    Box(Modifier.fillMaxWidth().padding(top = 48.dp), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("🔍", fontSize = 48.sp)
+                            Spacer(Modifier.height(12.dp))
+                            Text(
+                                if (state.searchStoreFilter != null && state.products.isNotEmpty())
+                                    "Sem resultados em ${CHAIN_LABELS[state.searchStoreFilter] ?: state.searchStoreFilter}"
+                                else
+                                    "Sem resultados para \"${state.lastQuery}\"",
+                                color = TextPrimary,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Spacer(Modifier.height(6.dp))
+                            Text(
+                                if (state.searchStoreFilter != null && state.products.isNotEmpty())
+                                    "Tenta outro supermercado ou limpa o filtro"
+                                else
+                                    "Tenta outro nome ou verifica se o scraper está ativo",
+                                color = TextDisabled,
+                                fontSize = 12.sp,
+                            )
+                        }
                     }
                 }
-            }
-        } else if (!state.hasSearched) {
-            item {
-                Box(Modifier.fillMaxWidth().padding(top = 48.dp), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("🛍️", fontSize = 52.sp)
-                        Spacer(Modifier.height(16.dp))
-                        Text("Pesquisa um ingrediente", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                        Spacer(Modifier.height(4.dp))
-                        Text("Compara preços nos supermercados PT em tempo real", color = TextDisabled, fontSize = 13.sp)
-                        Spacer(Modifier.height(20.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            listOf("frango", "arroz", "ovos").forEach { hint ->
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(20.dp))
-                                        .background(GreenPrimary.copy(alpha = 0.1f))
-                                        .border(1.dp, GreenPrimary.copy(alpha = 0.3f), RoundedCornerShape(20.dp))
-                                        .padding(horizontal = 12.dp, vertical = 6.dp),
-                                ) {
-                                    Text(hint, color = GreenPrimary, fontSize = 12.sp)
+            } else if (!state.hasSearched) {
+                item {
+                    Box(Modifier.fillMaxWidth().padding(top = 48.dp), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("🛍️", fontSize = 52.sp)
+                            Spacer(Modifier.height(16.dp))
+                            Text("Pesquisa um ingrediente", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                            Spacer(Modifier.height(4.dp))
+                            Text("Compara preços nos supermercados PT em tempo real", color = TextDisabled, fontSize = 13.sp)
+                            Spacer(Modifier.height(20.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                listOf("frango", "arroz", "ovos").forEach { hint ->
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(20.dp))
+                                            .background(GreenPrimary.copy(alpha = 0.1f))
+                                            .border(1.dp, GreenPrimary.copy(alpha = 0.3f), RoundedCornerShape(20.dp))
+                                            .clickable { onQueryChange(hint); onSearch() }
+                                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                                    ) {
+                                        Text(hint, color = GreenPrimary, fontSize = 12.sp)
+                                    }
                                 }
                             }
                         }
                     }
                 }
             }
-        }
 
-        if (state.products.isNotEmpty()) {
-            item {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        "${state.products.size} resultados",
-                        color = TextSecondary,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    Spacer(Modifier.weight(1f))
-                    val cheapest = state.products.minByOrNull { it.price ?: Double.MAX_VALUE }
-                    if (cheapest?.price != null) {
+            if (displayProducts.isNotEmpty()) {
+                item {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            "Menor: €%.2f".format(cheapest.price),
-                            color = IncomeGreen,
+                            if (state.searchStoreFilter != null)
+                                "${displayProducts.size} resultados · ${CHAIN_LABELS[state.searchStoreFilter] ?: state.searchStoreFilter}"
+                            else
+                                "${displayProducts.size} resultados",
+                            color = TextSecondary,
                             fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
+                            fontWeight = FontWeight.SemiBold,
                         )
+                        Spacer(Modifier.weight(1f))
+                        val cheapest = displayProducts.minByOrNull { it.price ?: Double.MAX_VALUE }
+                        if (cheapest?.price != null) {
+                            Text(
+                                "Menor: €%.2f".format(cheapest.price),
+                                color = IncomeGreen,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                            )
+                        }
                     }
                 }
             }
-        }
 
-        items(state.products) { product ->
-            ProductCard(product)
+            items(displayProducts) { product ->
+                ProductCard(product)
+            }
         }
     }
 }
 
 @Composable
-private fun PlanPricesContent(state: GroceryUiState, onRetry: () -> Unit) {
+private fun PlanPricesContent(
+    state: GroceryUiState,
+    onRetry: () -> Unit,
+    onSearchQueryChange: (String) -> Unit,
+    onStoreFilterChange: (String?) -> Unit,
+) {
     when {
         state.isEnriching -> EnrichingLoadingState(itemCount = 0)
         state.enrichedItems.isEmpty() && state.error != null -> {
@@ -533,51 +646,136 @@ private fun PlanPricesContent(state: GroceryUiState, onRetry: () -> Unit) {
             }
         }
         else -> {
-            // estimatedPrice já é o preço total do item (não por unidade)
-            val totalEstimated = state.enrichedItems.sumOf { it.estimatedPrice }
-            val totalBest = state.enrichedItems.sumOf { it.bestPrice ?: it.estimatedPrice }
+            val allItems = state.enrichedItems
+            val filteredItems = allItems.filter { item ->
+                state.planSearchQuery.isBlank() ||
+                    item.name.contains(state.planSearchQuery, ignoreCase = true)
+            }
+            val totalEstimated = allItems.sumOf { it.estimatedPrice }
+            val totalBest = allItems.sumOf { it.bestPrice ?: it.estimatedPrice }
             val savings = (totalEstimated - totalBest).coerceAtLeast(0.0)
-            val bestStoreMap = state.enrichedItems
-                .filter { it.bestSource != null && it.bestPrice != null }
-                .groupBy { it.bestSource!! }
-                .mapValues { (_, items) -> items.sumOf { it.bestPrice ?: 0.0 } }
-            val bestStore = bestStoreMap.minByOrNull { it.value }
+            val storesWithData = allItems.flatMap { it.products }.map { it.source }.distinct()
+            val perStoreTotals = storesWithData.associateWith { store ->
+                allItems.sumOf { item ->
+                    item.products
+                        .filter { it.source == store && it.price != null }
+                        .minByOrNull { it.price!! }?.price ?: item.estimatedPrice
+                }
+            }
 
             LazyColumn(
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 item {
-                    PriceSummaryCard(
-                        estimated = totalEstimated,
-                        best = totalBest,
-                        savings = savings,
-                        itemCount = state.enrichedItems.size,
+                    OutlinedTextField(
+                        value = state.planSearchQuery,
+                        onValueChange = onSearchQueryChange,
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text("Filtrar itens...", color = TextDisabled, fontSize = 13.sp) },
+                        leadingIcon = {
+                            Icon(Icons.Default.Search, contentDescription = null, tint = GreenPrimary, modifier = Modifier.size(20.dp))
+                        },
+                        trailingIcon = if (state.planSearchQuery.isNotBlank()) {
+                            {
+                                IconButton(onClick = { onSearchQueryChange("") }) {
+                                    Icon(Icons.Default.Close, contentDescription = null, tint = TextDisabled, modifier = Modifier.size(18.dp))
+                                }
+                            }
+                        } else null,
+                        singleLine = true,
+                        shape = RoundedCornerShape(14.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = GreenPrimary,
+                            unfocusedBorderColor = CardElevated,
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary,
+                            cursorColor = GreenPrimary,
+                        ),
                     )
                 }
 
-                if (bestStore != null && savings > 0.1) {
+                if (perStoreTotals.isNotEmpty()) {
                     item {
-                        BestStoreCard(
-                            chain = bestStore.key,
-                            totalPrice = bestStore.value,
-                            savings = savings,
-                        )
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            item {
+                                StoreComparisonChip(
+                                    label = "Todos",
+                                    emoji = "🛒",
+                                    total = totalBest,
+                                    selected = state.planStoreFilter == null,
+                                    color = GreenPrimary,
+                                    onClick = { onStoreFilterChange(null) },
+                                )
+                            }
+                            items(perStoreTotals.entries.sortedBy { it.value }) { (store, total) ->
+                                StoreComparisonChip(
+                                    label = CHAIN_LABELS[store] ?: store,
+                                    emoji = CHAIN_EMOJIS[store] ?: "🏪",
+                                    total = total,
+                                    selected = state.planStoreFilter == store,
+                                    color = CHAIN_COLORS[store] ?: GreenPrimary,
+                                    onClick = { onStoreFilterChange(if (state.planStoreFilter == store) null else store) },
+                                )
+                            }
+                        }
+                    }
+                }
+
+                item {
+                    val displayBest = if (state.planStoreFilter != null)
+                        perStoreTotals[state.planStoreFilter] ?: totalBest
+                    else
+                        totalBest
+                    PriceSummaryCard(
+                        estimated = totalEstimated,
+                        best = displayBest,
+                        savings = (totalEstimated - displayBest).coerceAtLeast(0.0),
+                        itemCount = allItems.size,
+                    )
+                }
+
+                if (state.planStoreFilter == null) {
+                    val bestStoreMap = allItems
+                        .filter { it.bestSource != null && it.bestPrice != null }
+                        .groupBy { it.bestSource!! }
+                        .mapValues { (_, storeItems) -> storeItems.sumOf { it.bestPrice ?: 0.0 } }
+                    val bestStore = bestStoreMap.minByOrNull { it.value }
+                    if (bestStore != null && savings > 0.1) {
+                        item {
+                            BestStoreCard(chain = bestStore.key, totalPrice = bestStore.value, savings = savings)
+                        }
                     }
                 }
 
                 item {
                     Text(
-                        "${state.enrichedItems.size} itens · ${state.enrichedItems.count { it.bestPrice != null }} com preço real",
+                        if (state.planSearchQuery.isBlank())
+                            "${filteredItems.size} itens · ${filteredItems.count { it.bestPrice != null }} com preço real"
+                        else
+                            "${filteredItems.size} de ${allItems.size} itens",
                         color = TextDisabled,
                         fontSize = 11.sp,
                         modifier = Modifier.padding(start = 2.dp),
                     )
                 }
 
-                items(state.enrichedItems) { item ->
-                    EnrichedItemCard(item)
+                items(filteredItems) { item ->
+                    EnrichedItemCard(item = item, focusedStore = state.planStoreFilter)
                 }
+
+                if (filteredItems.isEmpty() && state.planSearchQuery.isNotBlank()) {
+                    item {
+                        Box(Modifier.fillMaxWidth().padding(top = 32.dp), contentAlignment = Alignment.Center) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text("🔍", fontSize = 36.sp)
+                                Spacer(Modifier.height(8.dp))
+                                Text("Sem itens para \"${state.planSearchQuery}\"", color = TextDisabled, fontSize = 13.sp)
+                            }
+                        }
+                    }
+                }
+
                 item { Spacer(Modifier.height(40.dp)) }
             }
         }
@@ -654,7 +852,7 @@ private fun PriceSummaryCard(
                     Text("€%.2f".format(estimated), color = TextSecondary, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
                 }
                 Icon(
-                    Icons.Default.ArrowForward,
+                    Icons.AutoMirrored.Filled.ArrowForward,
                     contentDescription = null,
                     tint = GreenPrimary.copy(alpha = 0.5f),
                     modifier = Modifier.size(18.dp),
@@ -731,74 +929,144 @@ private fun BestStoreCard(chain: String, totalPrice: Double, savings: Double) {
 }
 
 @Composable
-private fun EnrichedItemCard(item: EnrichedShoppingItemDto) {
+private fun EnrichedItemCard(item: EnrichedShoppingItemDto, focusedStore: String? = null) {
     val qty = if (item.quantity == item.quantity.toLong().toDouble())
         item.quantity.toLong().toString() else "%.1f".format(item.quantity)
+
+    val focusedPrice = if (focusedStore != null) {
+        item.products.filter { it.source == focusedStore && it.price != null }
+            .minByOrNull { it.price!! }?.price
+    } else null
+    val unavailable = focusedStore != null && focusedPrice == null
 
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = CardBackground),
+        colors = CardDefaults.cardColors(containerColor = if (unavailable) CardBackground.copy(alpha = 0.55f) else CardBackground),
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(item.name, color = TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                    Text(item.name, color = if (unavailable) TextDisabled else TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                     Text("$qty ${item.unit}", color = TextDisabled, fontSize = 12.sp)
                 }
-                if (item.bestPrice != null) {
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text(
-                            "€%.2f".format(item.bestPrice),
-                            color = IncomeGreen,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp,
-                        )
-                        val bestColor = CHAIN_COLORS[item.bestSource] ?: TextDisabled
-                        Text(
-                            "${CHAIN_EMOJIS[item.bestSource] ?: ""} ${CHAIN_LABELS[item.bestSource] ?: item.bestSource ?: ""}",
-                            color = bestColor,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.SemiBold,
-                        )
+                if (focusedStore == null) {
+                    if (item.bestPrice != null) {
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text(
+                                "€%.2f".format(item.bestPrice),
+                                color = IncomeGreen,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp,
+                            )
+                            val bestColor = CHAIN_COLORS[item.bestSource] ?: TextDisabled
+                            Text(
+                                "${CHAIN_EMOJIS[item.bestSource] ?: ""} ${CHAIN_LABELS[item.bestSource] ?: item.bestSource ?: ""}",
+                                color = bestColor,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                        }
+                    } else {
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text("Sem dados", color = TextDisabled, fontSize = 12.sp)
+                            Text("€%.2f est.".format(item.estimatedPrice), color = TextDisabled.copy(alpha = 0.6f), fontSize = 11.sp)
+                        }
                     }
                 } else {
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text("Sem dados", color = TextDisabled, fontSize = 12.sp)
-                        Text("€%.2f est.".format(item.estimatedPrice), color = TextDisabled.copy(alpha = 0.6f), fontSize = 11.sp)
+                    val storeColor = CHAIN_COLORS[focusedStore] ?: GreenPrimary
+                    if (focusedPrice != null) {
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text(
+                                "€%.2f".format(focusedPrice),
+                                color = storeColor,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp,
+                            )
+                            if (item.bestSource != focusedStore && item.bestPrice != null) {
+                                Text("melhor: €%.2f".format(item.bestPrice), color = IncomeGreen.copy(alpha = 0.7f), fontSize = 10.sp)
+                            }
+                        }
+                    } else {
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text("Indisponível", color = TextDisabled, fontSize = 12.sp)
+                            Text("€%.2f est.".format(item.estimatedPrice), color = TextDisabled.copy(alpha = 0.5f), fontSize = 11.sp)
+                        }
                     }
                 }
             }
 
             if (item.products.isNotEmpty()) {
                 Spacer(Modifier.height(10.dp))
-                // Price comparison dots per store
                 val byStore = item.products.groupBy { it.source }
                     .mapValues { (_, ps) -> ps.minByOrNull { it.price ?: Double.MAX_VALUE } }
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     byStore.forEach { (source, cheapest) ->
                         val color = CHAIN_COLORS[source] ?: TextDisabled
+                        val isFocused = focusedStore != null && source == focusedStore
+                        val isBest = focusedStore == null && source == item.bestSource
                         if (cheapest?.price != null) {
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(8.dp))
-                                    .background(color.copy(alpha = 0.12f))
-                                    .border(1.dp, color.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                                    .background(if (isFocused) color.copy(alpha = 0.25f) else color.copy(alpha = 0.12f))
+                                    .border(
+                                        if (isFocused) 2.dp else 1.dp,
+                                        if (isFocused) color else color.copy(alpha = 0.3f),
+                                        RoundedCornerShape(8.dp),
+                                    )
                                     .padding(horizontal = 8.dp, vertical = 4.dp),
                             ) {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                     Text(CHAIN_EMOJIS[source] ?: "•", fontSize = 10.sp)
                                     Text(
                                         "€%.2f".format(cheapest.price),
-                                        color = if (source == item.bestSource) IncomeGreen else TextSecondary,
+                                        color = when {
+                                            isFocused -> color
+                                            isBest -> IncomeGreen
+                                            else -> TextSecondary
+                                        },
                                         fontSize = 11.sp,
-                                        fontWeight = if (source == item.bestSource) FontWeight.Bold else FontWeight.Normal,
+                                        fontWeight = if (isFocused || isBest) FontWeight.Bold else FontWeight.Normal,
                                     )
                                 }
                             }
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StoreComparisonChip(
+    label: String,
+    emoji: String,
+    total: Double?,
+    selected: Boolean,
+    color: Color,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(if (selected) color.copy(alpha = 0.18f) else SurfaceDark)
+            .border(
+                width = if (selected) 2.dp else 1.dp,
+                color = if (selected) color else TextDisabled.copy(alpha = 0.25f),
+                shape = RoundedCornerShape(14.dp),
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(emoji, fontSize = 18.sp)
+            Spacer(Modifier.height(2.dp))
+            Text(label, color = if (selected) color else TextSecondary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+            if (total != null) {
+                Spacer(Modifier.height(2.dp))
+                Text("€%.2f".format(total), color = if (selected) color else TextDisabled, fontSize = 13.sp, fontWeight = FontWeight.Bold)
             }
         }
     }

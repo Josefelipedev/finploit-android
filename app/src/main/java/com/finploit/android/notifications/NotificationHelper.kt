@@ -7,7 +7,6 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
@@ -21,28 +20,36 @@ class NotificationHelper @Inject constructor(
     @ApplicationContext private val context: Context,
 ) {
     companion object {
-        const val CHANNEL_ID = "finploit_recurring"
+        const val CHANNEL_RECURRING = "finploit_recurring"
+        const val CHANNEL_GOALS = "finploit_goals"
+        const val CHANNEL_BUDGET = "finploit_budget"
+        const val CHANNEL_MEAL = "finploit_meal"
+        // Keep old reference for backward compatibility
+        const val CHANNEL_ID = CHANNEL_RECURRING
         const val CHANNEL_NAME = "Contas Recorrentes"
         const val CHANNEL_DESCRIPTION = "Lembretes de contas e entradas recorrentes"
     }
 
-    fun createNotificationChannel() {
-        val channel = NotificationChannel(
-            CHANNEL_ID,
-            CHANNEL_NAME,
-            NotificationManager.IMPORTANCE_DEFAULT,
-        ).apply {
-            description = CHANNEL_DESCRIPTION
-        }
+    fun createNotificationChannels() {
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        manager.createNotificationChannel(channel)
+        listOf(
+            Triple(CHANNEL_RECURRING, "Contas Recorrentes", "Lembretes de contas e entradas recorrentes"),
+            Triple(CHANNEL_GOALS, "Metas Financeiras", "Progresso e conclusão de metas"),
+            Triple(CHANNEL_BUDGET, "Orçamento", "Alertas de limite de orçamento por categoria"),
+            Triple(CHANNEL_MEAL, "Alimentação", "Lembretes de hora de refeição e meal prep"),
+        ).forEach { (id, name, desc) ->
+            manager.createNotificationChannel(
+                NotificationChannel(id, name, NotificationManager.IMPORTANCE_DEFAULT).apply { description = desc }
+            )
+        }
     }
 
-    fun sendRecurringReminder(id: Int, title: String, body: String) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
-            != PackageManager.PERMISSION_GRANTED
-        ) return
+    // Legacy method kept for compatibility
+    fun createNotificationChannel() = createNotificationChannels()
+
+    fun sendNotification(id: Int, channelId: String = CHANNEL_RECURRING, title: String, body: String) {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
+            != PackageManager.PERMISSION_GRANTED) return
 
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
@@ -51,8 +58,7 @@ class NotificationHelper @Inject constructor(
             context, id, intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
-
-        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+        val notification = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentTitle(title)
             .setContentText(body)
@@ -61,7 +67,10 @@ class NotificationHelper @Inject constructor(
             .setContentIntent(pendingIntent)
             .setAutoCancel(true)
             .build()
-
         NotificationManagerCompat.from(context).notify(id, notification)
     }
+
+    // Legacy method
+    fun sendRecurringReminder(id: Int, title: String, body: String) =
+        sendNotification(id, CHANNEL_RECURRING, title, body)
 }

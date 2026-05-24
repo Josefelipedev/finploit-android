@@ -24,6 +24,7 @@ data class GroceryUiState(
     val postalCode: String = "1000-001",
     val location: UserLocation? = null,
     val selectedSupermarkets: Set<String> = setOf("continente", "auchan", "pingodoce"),
+    val hiddenSupermarkets: Set<String> = emptySet(),
     val products: List<GroceryProductDto> = emptyList(),
     val nearbyStores: List<NearbyStoreDto> = emptyList(),
     val enrichedItems: List<EnrichedShoppingItemDto> = emptyList(),
@@ -35,6 +36,9 @@ data class GroceryUiState(
     val mode: GroceryMode = GroceryMode.SEARCH,
     val hasSearched: Boolean = false,
     val lastQuery: String = "",
+    val planSearchQuery: String = "",
+    val planStoreFilter: String? = null,
+    val searchStoreFilter: String? = null,
 )
 
 enum class GroceryMode { SEARCH, PLAN_PRICES }
@@ -51,8 +55,10 @@ class GrocerySearchViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            val saved = preferencesRepository.postalCode.first()
-            _state.update { it.copy(postalCode = saved) }
+            val postal = preferencesRepository.postalCode.first()
+            val selected = preferencesRepository.selectedSupermarkets.first()
+            val hidden = preferencesRepository.hiddenSupermarkets.first()
+            _state.update { it.copy(postalCode = postal, selectedSupermarkets = selected, hiddenSupermarkets = hidden) }
         }
     }
 
@@ -71,11 +77,35 @@ class GrocerySearchViewModel @Inject constructor(
                 s.selectedSupermarkets + chain
             s.copy(selectedSupermarkets = new.ifEmpty { s.selectedSupermarkets })
         }
+        viewModelScope.launch {
+            preferencesRepository.setSelectedSupermarkets(_state.value.selectedSupermarkets)
+        }
+    }
+
+    fun hideSupermarket(chain: String) {
+        _state.update { s ->
+            val newHidden = s.hiddenSupermarkets + chain
+            val newSelected = (s.selectedSupermarkets - chain).ifEmpty { s.selectedSupermarkets }
+            s.copy(hiddenSupermarkets = newHidden, selectedSupermarkets = newSelected)
+        }
+        viewModelScope.launch {
+            preferencesRepository.setHiddenSupermarkets(_state.value.hiddenSupermarkets)
+            preferencesRepository.setSelectedSupermarkets(_state.value.selectedSupermarkets)
+        }
+    }
+
+    fun restoreHiddenSupermarkets() {
+        _state.update { it.copy(hiddenSupermarkets = emptySet()) }
+        viewModelScope.launch { preferencesRepository.setHiddenSupermarkets(emptySet()) }
     }
 
     fun setMode(mode: GroceryMode) = _state.update { it.copy(mode = mode) }
 
     fun clearEnrichedItems() = _state.update { it.copy(enrichedItems = emptyList(), error = null) }
+
+    fun setPlanSearchQuery(q: String) = _state.update { it.copy(planSearchQuery = q) }
+    fun setPlanStoreFilter(store: String?) = _state.update { it.copy(planStoreFilter = store) }
+    fun setSearchStoreFilter(store: String?) = _state.update { it.copy(searchStoreFilter = store) }
 
     fun detectLocation() {
         viewModelScope.launch {
@@ -111,7 +141,7 @@ class GrocerySearchViewModel @Inject constructor(
         val q = _state.value.query.trim()
         if (q.isEmpty()) return
         viewModelScope.launch {
-            _state.update { it.copy(isSearching = true, error = null, products = emptyList(), hasSearched = false, lastQuery = q) }
+            _state.update { it.copy(isSearching = true, error = null, products = emptyList(), hasSearched = false, lastQuery = q, searchStoreFilter = null) }
             val result = repository.search(
                 q,
                 _state.value.selectedSupermarkets.toList(),

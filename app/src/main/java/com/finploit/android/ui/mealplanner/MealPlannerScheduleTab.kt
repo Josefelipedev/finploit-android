@@ -1,5 +1,6 @@
 package com.finploit.android.ui.mealplanner
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -33,8 +34,10 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -70,9 +73,17 @@ internal fun ScheduleTab(
     onSaveProfile: () -> Unit = {},
     dietaryPreferences: Set<String> = emptySet(),
     mealPrepMode: Boolean = false,
+    dietMode: DietMode = DietMode.BALANCED,
     onToggleDietaryPref: (String) -> Unit = {},
     onSetMealPrepMode: (Boolean) -> Unit = {},
+    onSetDietMode: (DietMode) -> Unit = {},
+    breakfastAtWork: Set<Int> = emptySet(),
+    onToggleBreakfastAtWork: (Int) -> Unit = {},
 ) {
+    // Melhoria #7: breakfast can now be marked as outside
+    val breakfastStates = remember(schedule, breakfastAtWork) {
+        (0..6).map { day -> mutableStateOf(day in breakfastAtWork) }
+    }
     val lunchAtWork = remember(schedule) {
         val map = schedule.associateBy { it.dayOfWeek }
         (0..6).map { day ->
@@ -292,6 +303,58 @@ internal fun ScheduleTab(
                             if (mealPrepMode) Text("✓", color = GreenPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                         }
                     }
+                    Spacer(Modifier.height(14.dp))
+                    var dietModesExpanded by remember { mutableStateOf(false) }
+                    Row(
+                        modifier = Modifier.fillMaxWidth().clickable { dietModesExpanded = !dietModesExpanded },
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text("🍽️", fontSize = 16.sp)
+                        Spacer(Modifier.width(6.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text("Estilo do Cardápio", color = GreenPrimary, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                Box(
+                                    modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(GreenPrimary.copy(alpha = 0.12f)).padding(horizontal = 6.dp, vertical = 2.dp),
+                                ) {
+                                    Text("${dietMode.emoji} ${dietMode.label}", color = GreenPrimary, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                                }
+                            }
+                            Text(if (dietModesExpanded) "Toque para fechar" else "Toque para mudar estilo", color = TextDisabled, fontSize = 11.sp)
+                        }
+                        Text(if (dietModesExpanded) "▲" else "▼", color = TextDisabled, fontSize = 12.sp)
+                    }
+                    AnimatedVisibility(visible = dietModesExpanded) {
+                        Column(modifier = Modifier.padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            DietMode.entries.forEach { mode ->
+                                val selected = mode == dietMode
+                                Row(
+                                    modifier = Modifier.fillMaxWidth()
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(if (selected) GreenPrimary.copy(alpha = 0.08f) else CardElevated)
+                                        .border(1.dp, if (selected) GreenPrimary.copy(alpha = 0.4f) else TextDisabled.copy(alpha = 0.15f), RoundedCornerShape(10.dp))
+                                        .clickable { onSetDietMode(mode); dietModesExpanded = false }
+                                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Text(mode.emoji, fontSize = 20.sp)
+                                    Spacer(Modifier.width(10.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(mode.label, color = if (selected) GreenPrimary else TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                                        Text(mode.description, color = TextDisabled, fontSize = 11.sp)
+                                    }
+                                    Box(
+                                        modifier = Modifier.size(22.dp).clip(CircleShape)
+                                            .background(if (selected) GreenPrimary.copy(alpha = 0.2f) else TextDisabled.copy(alpha = 0.08f))
+                                            .border(1.5.dp, if (selected) GreenPrimary else TextDisabled.copy(alpha = 0.3f), CircleShape),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        if (selected) Text("✓", color = GreenPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -311,10 +374,11 @@ internal fun ScheduleTab(
         }
         items(7) { day ->
             val dayColor = DAY_COLORS.getOrElse(day) { GreenPrimary }
+            val isBreakfast = breakfastStates[day]
             val isLunch = lunchAtWork[day]
             val isDinner = dinnerAtWork[day]
-            val allOut = isLunch.value && isDinner.value
-            val allHome = !isLunch.value && !isDinner.value
+            val allOut = isBreakfast.value && isLunch.value && isDinner.value
+            val allHome = !isBreakfast.value && !isLunch.value && !isDinner.value
 
             Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = CardBackground)) {
                 Column(modifier = Modifier.padding(14.dp)) {
@@ -335,16 +399,27 @@ internal fun ScheduleTab(
                             Text(DAY_FULL_NAMES[day], color = TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                             val summary = when {
                                 allHome -> "Todas as refeições em casa 🏠"
-                                allOut -> "Almoço e jantar fora 🏢"
-                                isLunch.value -> "Almoço fora, jantar em casa"
-                                else -> "Almoço em casa, jantar fora"
+                                allOut -> "Todas as refeições fora 🏢"
+                                isLunch.value && isDinner.value -> "Café em casa, almoço e jantar fora"
+                                isLunch.value -> "Almoço fora, resto em casa"
+                                isDinner.value -> "Jantar fora, resto em casa"
+                                isBreakfast.value -> "Café fora, resto em casa"
+                                else -> "Todas em casa 🏠"
                             }
                             Text(summary, color = if (allHome) GreenPrimary else Color(0xFF64B5F6), fontSize = 11.sp)
                         }
                     }
                     Spacer(Modifier.height(12.dp))
 
-                    MealLocationRow(emoji = "☀️", label = "Café da manhã", atWork = false, locked = true, onToggle = {})
+                    // Melhoria #7: breakfast is now unlocked
+                    MealLocationRow(
+                        emoji = "☀️", label = "Café da manhã",
+                        atWork = isBreakfast.value, locked = false,
+                        onToggle = {
+                            isBreakfast.value = !isBreakfast.value
+                            onToggleBreakfastAtWork(day)
+                        },
+                    )
                     Spacer(Modifier.height(8.dp))
                     MealLocationRow(emoji = "🌤", label = "Almoço", atWork = isLunch.value, locked = false, onToggle = { isLunch.value = !isLunch.value })
                     Spacer(Modifier.height(8.dp))

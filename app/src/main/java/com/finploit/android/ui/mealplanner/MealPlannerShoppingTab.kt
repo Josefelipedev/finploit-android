@@ -1,6 +1,9 @@
 package com.finploit.android.ui.mealplanner
 
 import android.content.Intent
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -24,9 +27,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -36,10 +42,16 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -76,14 +88,110 @@ internal fun ShoppingTab(
     enrichedItems: Map<String, EnrichedShoppingItemDto> = emptyMap(),
     isEnrichingPrices: Boolean = false,
     onEnrichPrices: () -> Unit = {},
+    enrichedAt: Long? = null,
     shoppingFilter: ShoppingFilter = ShoppingFilter.PENDING,
+    onResetShopping: () -> Unit = {},
+    isResettingShopping: Boolean = false,
     onFilterChange: (ShoppingFilter) -> Unit = {},
     collapsedCategories: Set<String> = emptySet(),
     onToggleCategory: (String) -> Unit = {},
     onBuyAllInCategory: (String) -> Unit = {},
+    pantryAddSuggestion: MealShoppingItemDto? = null,
+    onDismissPantrySuggestion: () -> Unit = {},
+    onAddSuggestionToPantry: () -> Unit = {},
+    onAddCustomItem: (String, Double, String, String?, Double?) -> Unit = { _, _, _, _, _ -> },
+    onUpdateActualPrice: (Int, Double?) -> Unit = { _, _ -> },
+    selectedSupermarketFilter: String? = null,
+    onSupermarketFilterChange: (String?) -> Unit = {},
 ) {
     val context = LocalContext.current
     val currencyConfig = LocalCurrencyConfig.current
+
+    // Melhoria #6 — Search bar state
+    var searchQuery by remember { mutableStateOf("") }
+
+    // Pantry suggestion dialog
+    pantryAddSuggestion?.let { suggestion ->
+        AlertDialog(
+            onDismissRequest = onDismissPantrySuggestion,
+            containerColor = CardBackground,
+            title = { Text("Adicionar à despensa?", color = TextPrimary, fontWeight = FontWeight.Bold) },
+            text = { Text("Acabou de comprar ${suggestion.name}. Quer adicioná-lo à despensa para o plano alimentar considerar que já o tem em casa?", color = TextSecondary, fontSize = 13.sp) },
+            confirmButton = {
+                Button(onClick = onAddSuggestionToPantry, colors = ButtonDefaults.buttonColors(containerColor = GreenPrimary)) {
+                    Text("Sim, adicionar", color = BackgroundDark, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = { TextButton(onClick = onDismissPantrySuggestion) { Text("Não", color = TextDisabled) } },
+        )
+    }
+
+    // Add custom item dialog
+    var showAddDialog by remember { mutableStateOf(false) }
+    var newItemName by remember { mutableStateOf("") }
+    var newItemQty by remember { mutableStateOf("1") }
+    var newItemUnit by remember { mutableStateOf("un") }
+    var newItemCategory by remember { mutableStateOf("") }
+    var newItemPrice by remember { mutableStateOf("") }
+
+    if (showAddDialog) {
+        AlertDialog(
+            onDismissRequest = { showAddDialog = false },
+            containerColor = CardBackground,
+            title = { Text("Adicionar item", color = TextPrimary, fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = newItemName, onValueChange = { newItemName = it },
+                        label = { Text("Nome *", fontSize = 12.sp) },
+                        singleLine = true, modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = GreenPrimary, focusedLabelColor = GreenPrimary, cursorColor = GreenPrimary),
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = newItemQty, onValueChange = { newItemQty = it.filter { c -> c.isDigit() || c == '.' } },
+                            label = { Text("Qtd", fontSize = 12.sp) }, singleLine = true,
+                            modifier = Modifier.weight(1f),
+                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = GreenPrimary, focusedLabelColor = GreenPrimary, cursorColor = GreenPrimary),
+                        )
+                        OutlinedTextField(
+                            value = newItemUnit, onValueChange = { newItemUnit = it },
+                            label = { Text("Und.", fontSize = 12.sp) }, singleLine = true,
+                            modifier = Modifier.weight(1f),
+                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = GreenPrimary, focusedLabelColor = GreenPrimary, cursorColor = GreenPrimary),
+                        )
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = newItemCategory, onValueChange = { newItemCategory = it },
+                            label = { Text("Categoria", fontSize = 12.sp) }, singleLine = true,
+                            modifier = Modifier.weight(1f),
+                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = GreenPrimary, focusedLabelColor = GreenPrimary, cursorColor = GreenPrimary),
+                        )
+                        OutlinedTextField(
+                            value = newItemPrice, onValueChange = { newItemPrice = it.filter { c -> c.isDigit() || c == '.' } },
+                            label = { Text("Preço est.", fontSize = 12.sp) }, singleLine = true,
+                            modifier = Modifier.weight(1f),
+                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = GreenPrimary, focusedLabelColor = GreenPrimary, cursorColor = GreenPrimary),
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (newItemName.isNotBlank()) {
+                            onAddCustomItem(newItemName, newItemQty.toDoubleOrNull() ?: 1.0, newItemUnit, newItemCategory.ifBlank { null }, newItemPrice.toDoubleOrNull())
+                            newItemName = ""; newItemQty = "1"; newItemUnit = "un"; newItemCategory = ""; newItemPrice = ""
+                            showAddDialog = false
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = GreenPrimary),
+                ) { Text("Adicionar", color = BackgroundDark, fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = { TextButton(onClick = { showAddDialog = false }) { Text("Cancelar", color = TextDisabled) } },
+        )
+    }
 
     if (items.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -100,10 +208,15 @@ internal fun ShoppingTab(
 
     val purchased = items.count { it.purchased }
     val total = items.size
-    val filteredItems = when (shoppingFilter) {
-        ShoppingFilter.ALL -> items
-        ShoppingFilter.PENDING -> items.filter { !it.purchased }
-        ShoppingFilter.PURCHASED -> items.filter { it.purchased }
+    val filteredItems = items.let { all ->
+        val byFilter = when (shoppingFilter) {
+            ShoppingFilter.ALL -> all
+            ShoppingFilter.PENDING -> all.filter { !it.purchased }
+            ShoppingFilter.PURCHASED -> all.filter { it.purchased }
+        }
+        // Melhoria #6 — apply search query filter
+        if (searchQuery.isBlank()) byFilter
+        else byFilter.filter { it.name.contains(searchQuery.trim(), ignoreCase = true) }
     }
     val grouped = filteredItems.groupBy { it.category ?: "Outros" }
         .entries.sortedBy { categorySortKey(it.key) }
@@ -165,6 +278,30 @@ internal fun ShoppingTab(
                 }
             }
         }
+        // Melhoria #6 — Search bar
+        item {
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                placeholder = { Text("Pesquisar item…", fontSize = 13.sp, color = TextDisabled) },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = TextDisabled, modifier = Modifier.size(18.dp)) },
+                trailingIcon = {
+                    if (searchQuery.isNotEmpty()) {
+                        IconButton(onClick = { searchQuery = "" }) {
+                            Icon(Icons.Default.Close, contentDescription = "Limpar", tint = TextDisabled, modifier = Modifier.size(16.dp))
+                        }
+                    }
+                },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = GreenPrimary,
+                    unfocusedBorderColor = TextDisabled.copy(alpha = 0.3f),
+                    cursorColor = GreenPrimary,
+                ),
+            )
+        }
         item {
             Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = CardBackground)) {
                 Column(modifier = Modifier.padding(14.dp)) {
@@ -184,9 +321,30 @@ internal fun ShoppingTab(
                     }
                     if (purchased == total && total > 0) {
                         Spacer(Modifier.height(8.dp))
-                        Box(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(GreenPrimary.copy(alpha = 0.1f)).padding(8.dp), contentAlignment = Alignment.Center) {
-                            Text("🎉 Todas as compras concluídas!", color = GreenPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        Box(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(GreenPrimary.copy(alpha = 0.1f)).padding(horizontal = 8.dp, vertical = 6.dp)) {
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                Text("🎉 Todas as compras concluídas!", color = GreenPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                if (isResettingShopping) {
+                                    CircularProgressIndicator(modifier = Modifier.size(16.dp), color = GreenPrimary, strokeWidth = 2.dp)
+                                } else {
+                                    Text(
+                                        "↺ Reiniciar",
+                                        color = GreenPrimary,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(GreenPrimary.copy(alpha = 0.12f))
+                                            .clickable { onResetShopping() }
+                                            .padding(horizontal = 8.dp, vertical = 2.dp),
+                                    )
+                                }
+                            }
                         }
+                    }
+                    enrichedAt?.let { ts ->
+                        val time = remember(ts) { SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(ts)) }
+                        Text("Preços actualizados às $time", color = TextDisabled, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp))
                     }
                 }
             }
@@ -285,6 +443,65 @@ internal fun ShoppingTab(
                     }
                     Text(bestStore.replaceFirstChar { it.uppercase() }, color = Color(0xFF64B5F6), fontWeight = FontWeight.Bold, fontSize = 15.sp)
                 }
+            }
+        }
+        // Melhoria #5 — Supermarket filter chips (only when enriched prices are available)
+        if (hasEnriched) {
+            item {
+                val storeLabels = listOf(
+                    null to "🏬 Todos",
+                    "continente" to "🏪 Continente",
+                    "auchan" to "🟠 Auchan",
+                    "pingodoce" to "🟡 Pingo Doce",
+                )
+                Column {
+                    Text("Filtrar por supermercado", color = TextDisabled, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(bottom = 6.dp))
+                    Row(
+                        modifier = Modifier.horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        storeLabels.forEach { (store, label) ->
+                            val selected = selectedSupermarketFilter == store
+                            // Compute total for this store
+                            val storeTotal = if (store == null) {
+                                enrichedItems.values.sumOf { it.bestPrice ?: it.estimatedPrice }
+                            } else {
+                                enrichedItems.values.sumOf { item ->
+                                    item.products.filter { it.source.lowercase() == store }
+                                        .mapNotNull { it.price }.minOrNull() ?: 0.0
+                                }
+                            }
+                            FilterChip(
+                                selected = selected,
+                                onClick = { onSupermarketFilterChange(if (selected) null else store) },
+                                label = {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Text(label, fontSize = 11.sp)
+                                        if (storeTotal > 0.0) Text(currencyConfig.format(storeTotal), fontSize = 9.sp)
+                                    }
+                                },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = GreenPrimary.copy(alpha = 0.15f),
+                                    selectedLabelColor = GreenPrimary,
+                                    labelColor = TextSecondary,
+                                ),
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        item {
+            Button(
+                onClick = { showAddDialog = true },
+                modifier = Modifier.fillMaxWidth().height(44.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = CardBackground),
+            ) {
+                Text("➕", fontSize = 14.sp)
+                Spacer(Modifier.width(8.dp))
+                Text("Adicionar item avulso", color = TextSecondary, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
             }
         }
         item {
@@ -410,6 +627,7 @@ internal fun ShoppingTab(
                         item = item,
                         enriched = enrichedItems[item.name.trim().lowercase()],
                         onToggle = { onToggle(item.id) },
+                        onUpdateActualPrice = { price -> onUpdateActualPrice(item.id, price) },
                     )
                 }
             }
@@ -423,16 +641,39 @@ internal fun ShoppingItemRow(
     item: MealShoppingItemDto,
     enriched: EnrichedShoppingItemDto? = null,
     onToggle: () -> Unit,
+    onUpdateActualPrice: (Double?) -> Unit = {},
 ) {
     val qty = if (item.quantity == item.quantity.toLong().toDouble()) item.quantity.toLong().toString() else "%.1f".format(item.quantity)
     val currencyConfig = LocalCurrencyConfig.current
-    val storeEmoji = when (enriched?.bestSource?.lowercase()) {
-        "continente" -> "🏪"
-        "auchan" -> "🟠"
-        "pingodoce" -> "🟡"
-        "mercadona" -> "🟢"
-        else -> "🏷️"
+    var showPriceDialog by remember { mutableStateOf(false) }
+    var actualPriceInput by remember(item.actualPrice) { mutableStateOf(item.actualPrice?.let { "%.2f".format(it) } ?: "") }
+
+    if (showPriceDialog) {
+        AlertDialog(
+            onDismissRequest = { showPriceDialog = false },
+            containerColor = CardBackground,
+            title = { Text("Preço real pago", color = TextPrimary, fontWeight = FontWeight.Bold) },
+            text = {
+                OutlinedTextField(
+                    value = actualPriceInput,
+                    onValueChange = { actualPriceInput = it.filter { c -> c.isDigit() || c == '.' } },
+                    label = { Text("Valor pago (${currencyConfig.symbol})", fontSize = 12.sp) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = GreenPrimary, focusedLabelColor = GreenPrimary, cursorColor = GreenPrimary),
+                )
+            },
+            confirmButton = {
+                Button(onClick = { onUpdateActualPrice(actualPriceInput.toDoubleOrNull()); showPriceDialog = false }, colors = ButtonDefaults.buttonColors(containerColor = GreenPrimary)) {
+                    Text("Guardar", color = BackgroundDark, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { onUpdateActualPrice(null); actualPriceInput = ""; showPriceDialog = false }) { Text("Limpar", color = TextDisabled) }
+            },
+        )
     }
+
     Card(
         modifier = Modifier.fillMaxWidth().clickable { onToggle() },
         shape = RoundedCornerShape(12.dp),
@@ -470,22 +711,45 @@ internal fun ShoppingItemRow(
                         Text(item.packageNote, color = Color(0xFFFFD740).copy(alpha = 0.85f), fontSize = 10.sp, lineHeight = 14.sp)
                     }
                 }
-                if (!item.purchased && enriched?.bestPrice != null && enriched.bestSource != null) {
-                    Spacer(Modifier.height(4.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(GreenPrimary.copy(alpha = 0.12f))
-                                .border(1.dp, GreenPrimary.copy(alpha = 0.3f), RoundedCornerShape(6.dp))
-                                .padding(horizontal = 6.dp, vertical = 2.dp),
+                if (!item.purchased && enriched != null) {
+                    val pricesByStore = remember(enriched.products) {
+                        enriched.products
+                            .filter { it.price != null && it.price > 0 }
+                            .groupBy { it.source.lowercase() }
+                            .mapValues { (_, prods) -> prods.minByOrNull { it.price!! }!! }
+                            .entries.sortedBy { it.value.price }
+                    }
+                    if (pricesByStore.isNotEmpty()) {
+                        Spacer(Modifier.height(4.dp))
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            modifier = Modifier.horizontalScroll(rememberScrollState()),
                         ) {
-                            Text(
-                                "$storeEmoji ${enriched.bestSource.replaceFirstChar { it.uppercase() }} ${currencyConfig.format(enriched.bestPrice)}",
-                                color = GreenPrimary,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold,
-                            )
+                            pricesByStore.forEachIndexed { index, (source, product) ->
+                                val isCheapest = index == 0
+                                val chipEmoji = when (source) {
+                                    "continente" -> "🏪"
+                                    "auchan" -> "🟠"
+                                    "pingodoce" -> "🟡"
+                                    "mercadona" -> "🟢"
+                                    else -> "🏷️"
+                                }
+                                val chipColor = if (isCheapest) GreenPrimary else TextDisabled
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(chipColor.copy(alpha = 0.10f))
+                                        .border(1.dp, chipColor.copy(alpha = 0.3f), RoundedCornerShape(6.dp))
+                                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                                ) {
+                                    Text(
+                                        "$chipEmoji ${source.replaceFirstChar { it.uppercase() }} ${currencyConfig.format(product.price!!)}",
+                                        color = chipColor,
+                                        fontSize = 10.sp,
+                                        fontWeight = if (isCheapest) FontWeight.SemiBold else FontWeight.Normal,
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -494,19 +758,35 @@ internal fun ShoppingItemRow(
                 item.estimatedPrice?.let {
                     Text(
                         currencyConfig.format(it),
-                        color = if (item.purchased) TextDisabled else if (enriched?.bestPrice != null) TextDisabled else GreenPrimary,
+                        color = if (item.purchased || enriched?.bestPrice != null) TextDisabled else GreenPrimary,
                         fontSize = 13.sp,
-                        fontWeight = if (!item.purchased) FontWeight.Bold else FontWeight.Normal,
-                        textDecoration = if (item.purchased) TextDecoration.LineThrough else if (enriched?.bestPrice != null) TextDecoration.LineThrough else TextDecoration.None,
+                        fontWeight = if (!item.purchased && enriched?.bestPrice == null) FontWeight.Bold else FontWeight.Normal,
+                        textDecoration = if (item.purchased || enriched?.bestPrice != null) TextDecoration.LineThrough else TextDecoration.None,
                     )
                 }
                 if (!item.purchased && enriched?.bestPrice != null) {
-                    Text(
-                        currencyConfig.format(enriched.bestPrice),
-                        color = GreenPrimary,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                    )
+                    Text(currencyConfig.format(enriched.bestPrice), color = GreenPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                }
+                if (item.purchased) {
+                    if (item.actualPrice != null) {
+                        Text(
+                            "✓ ${currencyConfig.format(item.actualPrice)}",
+                            color = GreenPrimary,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.clickable { showPriceDialog = true },
+                        )
+                    } else {
+                        Text(
+                            "Preço real?",
+                            color = TextDisabled.copy(alpha = 0.6f),
+                            fontSize = 11.sp,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .clickable { showPriceDialog = true }
+                                .padding(horizontal = 4.dp, vertical = 2.dp),
+                        )
+                    }
                 }
             }
         }

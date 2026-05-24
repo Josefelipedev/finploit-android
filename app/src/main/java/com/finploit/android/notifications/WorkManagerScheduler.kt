@@ -13,6 +13,7 @@ object WorkManagerScheduler {
 
     private const val DAILY_WORK = "finploit_daily_reminder"
     private const val SHOPPING_WORK = "finploit_shopping_reminder"
+    private const val MEAL_WORK = "finploit_meal_reminder"
 
     fun scheduleDailyReminder(context: Context) {
         val now = Calendar.getInstance()
@@ -55,6 +56,17 @@ object WorkManagerScheduler {
 
         WorkManager.getInstance(context).enqueueUniquePeriodicWork(
             SHOPPING_WORK,
+            ExistingPeriodicWorkPolicy.KEEP,
+            request,
+        )
+    }
+
+    /** Melhoria #6 — Schedule hourly meal reminder checks (fires ~08:00, 12:30, 19:30) */
+    fun scheduleMealReminders(context: Context) {
+        val request = PeriodicWorkRequestBuilder<MealReminderWorker>(1, TimeUnit.HOURS)
+            .build()
+        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+            MEAL_WORK,
             ExistingPeriodicWorkPolicy.KEEP,
             request,
         )

@@ -1,6 +1,9 @@
 package com.finploit.android.ui.mealplanner
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,7 +26,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -59,6 +62,8 @@ internal fun HistoryTab(
     onRefresh: () -> Unit,
     onDeletePlan: (Int) -> Unit,
     onClearAll: () -> Unit,
+    onLoadPlanDays: (Int) -> Unit = {},
+    eatenMeals: Set<String> = emptySet(),
 ) {
     var showClearConfirm by remember { mutableStateOf(false) }
 
@@ -121,11 +126,42 @@ internal fun HistoryTab(
                     }
                 }
             }
+            // Melhoria #4 — Cost comparison banner (last 2 plans)
+            if (plans.size >= 2) {
+                item {
+                    val sorted = plans.sortedByDescending { it.weekStart }
+                    val newest = sorted[0]
+                    val previous = sorted[1]
+                    val newestCost = newest.shoppingList?.totalEstimate
+                    val previousCost = previous.shoppingList?.totalEstimate
+                    if (newestCost != null && previousCost != null) {
+                        val delta = newestCost - previousCost
+                        val deltaColor = if (delta > 0) Color(0xFFEF5350) else GreenPrimary
+                        val deltaLabel = if (delta > 0) "▲ +€%.2f vs semana anterior".format(delta) else "▼ −€%.2f vs semana anterior".format(-delta)
+                        Row(
+                            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                                .background(deltaColor.copy(alpha = 0.08f))
+                                .border(1.dp, deltaColor.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            Text(if (delta > 0) "📈" else "📉", fontSize = 20.sp)
+                            Column {
+                                Text("Comparação com plano anterior", color = TextSecondary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                                Text(deltaLabel, color = deltaColor, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
             items(plans, key = { it.id }) { plan ->
                 HistoryPlanCard(
                     plan = plan,
                     isDeleting = isDeletingPlan == plan.id,
                     onDelete = { onDeletePlan(plan.id) },
+                    onLoadDays = { onLoadPlanDays(plan.id) },
+                    eatenMeals = eatenMeals,
                 )
             }
             item { Spacer(Modifier.height(80.dp)) }
@@ -139,6 +175,8 @@ internal fun HistoryPlanCard(
     plan: MealPlanDto,
     isDeleting: Boolean,
     onDelete: () -> Unit,
+    onLoadDays: () -> Unit = {},
+    eatenMeals: Set<String> = emptySet(),
 ) {
     var showConfirm by remember { mutableStateOf(false) }
 
@@ -162,13 +200,23 @@ internal fun HistoryPlanCard(
         )
     }
 
+    var expanded by remember { mutableStateOf(false) }
+    val dayNames = listOf("Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb")
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = CardBackground),
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                modifier = Modifier.fillMaxWidth().clickable {
+                    expanded = !expanded
+                    if (expanded && plan.days.isEmpty()) onLoadDays()
+                },
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         "Semana de ${plan.weekStart.take(10)}",
@@ -176,7 +224,35 @@ internal fun HistoryPlanCard(
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp,
                     )
-                    Text("${plan.days.size} dias planeados", color = TextDisabled, fontSize = 12.sp)
+                    // Melhoria #10 — Adherence %
+                    val mealTypes = listOf("breakfast", "lunch", "dinner")
+                    val totalMeals = plan.days.size * 3
+                    val eatenCount = plan.days.sumOf { day ->
+                        mealTypes.count { type -> "${plan.id}_${day.dayOfWeek}_$type" in eatenMeals }
+                    }
+                    val adherencePct = if (totalMeals > 0) (eatenCount * 100) / totalMeals else 0
+                    val adherenceColor = when {
+                        adherencePct >= 80 -> GreenPrimary
+                        adherencePct >= 50 -> Color(0xFFFFD740)
+                        else -> TextDisabled
+                    }
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text("${plan.days.size} dias", color = TextDisabled, fontSize = 12.sp)
+                        if (eatenCount > 0) {
+                            Box(
+                                modifier = Modifier.clip(RoundedCornerShape(4.dp))
+                                    .background(adherenceColor.copy(alpha = 0.12f))
+                                    .padding(horizontal = 5.dp, vertical = 1.dp),
+                            ) {
+                                Text("🎯 $adherencePct%", color = adherenceColor, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                            }
+                        } else {
+                            Text("· toque para expandir", color = TextDisabled, fontSize = 12.sp)
+                        }
+                    }
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (plan.active) {
@@ -199,9 +275,30 @@ internal fun HistoryPlanCard(
                     }
                 }
             }
+            AnimatedVisibility(visible = expanded) {
+                Column {
+                    Spacer(Modifier.height(8.dp))
+                    HorizontalDivider(color = TextDisabled.copy(alpha = 0.1f))
+                    Spacer(Modifier.height(8.dp))
+                    plan.days.sortedBy { it.dayOfWeek }.forEach { day ->
+                        val bf = parseMeal(day.breakfast)
+                        val lu = parseMeal(day.lunch)
+                        val di = parseMeal(day.dinner)
+                        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.Top) {
+                            Text(dayNames.getOrElse(day.dayOfWeek) { "?" }, color = TextDisabled, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(32.dp))
+                            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                                bf?.let { Text("☀️ ${it.name}", color = TextPrimary, fontSize = 11.sp) }
+                                lu?.let { Text("🌤 ${it.name}", color = TextSecondary, fontSize = 11.sp) }
+                                di?.let { Text("🌙 ${it.name}", color = TextSecondary, fontSize = 11.sp) }
+                                if (bf == null && lu == null && di == null) Text("Sem refeições em casa", color = TextDisabled, fontSize = 11.sp)
+                            }
+                        }
+                    }
+                }
+            }
             plan.shoppingList?.let { list ->
                 Spacer(Modifier.height(8.dp))
-                Divider(color = TextDisabled.copy(alpha = 0.1f))
+                HorizontalDivider(color = TextDisabled.copy(alpha = 0.1f))
                 Spacer(Modifier.height(8.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     val total = list.totalItems ?: list.items.size

@@ -23,6 +23,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -32,13 +33,19 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.finploit.android.data.dto.MealPlanDayDto
@@ -68,15 +75,92 @@ internal fun PlanTab(
     prepTimeFilter: Int? = null,
     onSetPrepTimeFilter: (Int?) -> Unit = {},
     onDayClick: (MealPlanDayDto) -> Unit,
+    dietMode: DietMode = DietMode.BALANCED,
+    eatenMeals: Set<String> = emptySet(),
+    planId: Int = 0,
+    tips: String? = null,
+    favoriteMeals: Set<String> = emptySet(),
+    tdee: Int? = null,
 ) {
     val scheduleByDay = schedule.associateBy { it.dayOfWeek }
     val currencyConfig = LocalCurrencyConfig.current
+    var showRegenerateConfirm by remember { mutableStateOf(false) }
+
+    if (showRegenerateConfirm) {
+        AlertDialog(
+            onDismissRequest = { showRegenerateConfirm = false },
+            containerColor = CardBackground,
+            title = { Text("Regenerar cardápio?", color = TextPrimary, fontWeight = FontWeight.Bold) },
+            text = { Text("O cardápio atual será substituído por um novo. Esta ação não pode ser desfeita.", color = TextSecondary, fontSize = 13.sp) },
+            confirmButton = {
+                Button(
+                    onClick = { showRegenerateConfirm = false; onGenerate() },
+                    colors = ButtonDefaults.buttonColors(containerColor = GreenPrimary),
+                ) { Text("Regenerar", color = BackgroundDark, fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRegenerateConfirm = false }) {
+                    Text("Cancelar", color = TextDisabled)
+                }
+            },
+        )
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item { Spacer(Modifier.height(8.dp)) }
+
+        // Melhoria #2 — Streak / adherence card
+        if (plan != null) {
+            item {
+                val mealTypes = listOf("breakfast", "lunch", "dinner")
+                val totalPlanned = plan.days.size * 3
+                val eatenCount = plan.days.sumOf { day ->
+                    mealTypes.count { type -> "${planId}_${day.dayOfWeek}_$type" in eatenMeals }
+                }
+                val adherencePct = if (totalPlanned > 0) (eatenCount * 100) / totalPlanned else 0
+                // Consecutive days with at least one meal eaten
+                val streak = plan.days.sortedBy { it.dayOfWeek }.takeWhile { day ->
+                    mealTypes.any { type -> "${planId}_${day.dayOfWeek}_$type" in eatenMeals }
+                }.size
+                val favoriteCount = favoriteMeals.count { it.startsWith("${planId}_") }
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = CardDefaults.cardColors(containerColor = CardBackground),
+                ) {
+                    Row(
+                        modifier = Modifier.padding(14.dp).fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("$eatenCount/$totalPlanned", color = GreenPrimary, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                            Text("refeições", color = TextDisabled, fontSize = 10.sp)
+                            Box(
+                                modifier = Modifier.padding(top = 4.dp).clip(RoundedCornerShape(4.dp))
+                                    .background(GreenPrimary.copy(alpha = 0.12f)).padding(horizontal = 6.dp, vertical = 2.dp),
+                            ) {
+                                Text("$adherencePct% aderência", color = GreenPrimary, fontSize = 9.sp, fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                        Box(modifier = Modifier.size(1.dp, 40.dp).background(TextDisabled.copy(alpha = 0.2f)))
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("🔥 $streak", color = Color(0xFFFF8A65), fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                            Text("dias seguidos", color = TextDisabled, fontSize = 10.sp)
+                        }
+                        Box(modifier = Modifier.size(1.dp, 40.dp).background(TextDisabled.copy(alpha = 0.2f)))
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("⭐ $favoriteCount", color = Color(0xFFFFD740), fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                            Text("favoritas", color = TextDisabled, fontSize = 10.sp)
+                        }
+                    }
+                }
+            }
+        }
+
         item {
             Column {
                 Text("Orçamento semanal", color = TextSecondary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(bottom = 8.dp))
@@ -115,22 +199,47 @@ internal fun PlanTab(
             }
         }
         item {
-            Box(
-                modifier = Modifier.fillMaxWidth().height(52.dp).clip(RoundedCornerShape(14.dp))
-                    .background(if (!isGenerating) Brush.horizontalGradient(listOf(GreenPrimary, IncomeGreen)) else Brush.horizontalGradient(listOf(TextDisabled, TextDisabled))),
-                contentAlignment = Alignment.Center,
-            ) {
-                Button(
-                    onClick = onGenerate, enabled = !isGenerating, modifier = Modifier.fillMaxSize(),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent, disabledContainerColor = Color.Transparent),
-                    shape = RoundedCornerShape(14.dp), elevation = null,
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    if (isGenerating) {
-                        CircularProgressIndicator(modifier = Modifier.size(18.dp), color = BackgroundDark, strokeWidth = 2.dp)
-                        Spacer(Modifier.width(10.dp))
-                        Text("Gerando cardápio com IA...", color = BackgroundDark, fontWeight = FontWeight.SemiBold)
-                    } else {
-                        Text(if (plan == null) "🥗 Gerar Cardápio com IA" else "🔄 Regenerar Cardápio", color = BackgroundDark, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(GreenPrimary.copy(alpha = 0.12f))
+                            .border(1.dp, GreenPrimary.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                            .padding(horizontal = 10.dp, vertical = 5.dp),
+                    ) {
+                        Text(
+                            "${dietMode.emoji} ${dietMode.label}",
+                            color = GreenPrimary,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                    Text("Modo activo — alterar em Agenda", color = TextDisabled, fontSize = 11.sp)
+                }
+                Box(
+                    modifier = Modifier.fillMaxWidth().height(52.dp).clip(RoundedCornerShape(14.dp))
+                        .background(if (!isGenerating) Brush.horizontalGradient(listOf(GreenPrimary, IncomeGreen)) else Brush.horizontalGradient(listOf(TextDisabled, TextDisabled))),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Button(
+                        onClick = { if (plan != null) showRegenerateConfirm = true else onGenerate() },
+                        enabled = !isGenerating,
+                        modifier = Modifier.fillMaxSize(),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent, disabledContainerColor = Color.Transparent),
+                        shape = RoundedCornerShape(14.dp), elevation = null,
+                    ) {
+                        if (isGenerating) {
+                            CircularProgressIndicator(modifier = Modifier.size(18.dp), color = BackgroundDark, strokeWidth = 2.dp)
+                            Spacer(Modifier.width(10.dp))
+                            Text("Gerando cardápio com IA...", color = BackgroundDark, fontWeight = FontWeight.SemiBold)
+                        } else {
+                            Text(if (plan == null) "🥗 Gerar Cardápio com IA" else "🔄 Regenerar Cardápio", color = BackgroundDark, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                        }
                     }
                 }
             }
@@ -172,7 +281,7 @@ internal fun PlanTab(
                             Text(DAY_EMOJIS.getOrElse(dow) { "?" }, fontSize = 14.sp)
                             Spacer(Modifier.height(2.dp))
                             val cal = day?.calories
-                            if (cal != null) Text("${cal}k", color = TextDisabled, fontSize = 9.sp)
+                            if (cal != null) Text("${cal}kcal", color = TextDisabled, fontSize = 8.sp)
                             else Text("—", color = TextDisabled.copy(alpha = 0.4f), fontSize = 9.sp)
                         }
                     }
@@ -230,26 +339,84 @@ internal fun PlanTab(
                         Column(modifier = Modifier.padding(14.dp)) {
                             Text("Resumo Nutricional Semanal", color = TextSecondary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                             Spacer(Modifier.height(6.dp))
-                            Text("Média: ~$avgCals kcal/dia", color = GreenPrimary, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                            Spacer(Modifier.height(8.dp))
-                            val maxVal = maxOf(totalProtein, totalCarbs, totalFat).toFloat().coerceAtLeast(1f)
+                            // Melhoria #1 — TDEE comparison
+                            if (tdee != null) {
+                                val diff = avgCals - tdee
+                                val diffColor = when {
+                                    diff > 200 -> ExpenseRed
+                                    diff < -300 -> Color(0xFFFFD740)
+                                    else -> GreenPrimary
+                                }
+                                val diffLabel = when {
+                                    diff > 200 -> "▲ ${diff} kcal acima do TDEE"
+                                    diff < -300 -> "▼ ${-diff} kcal abaixo do TDEE"
+                                    else -> "✓ alinhado com o TDEE"
+                                }
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Column {
+                                        Text("Média: ~$avgCals kcal/dia", color = GreenPrimary, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                        Text("Target TDEE: $tdee kcal/dia", color = TextDisabled, fontSize = 11.sp)
+                                    }
+                                    Box(
+                                        modifier = Modifier.clip(RoundedCornerShape(8.dp))
+                                            .background(diffColor.copy(alpha = 0.12f))
+                                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                                    ) {
+                                        Text(diffLabel, color = diffColor, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                                    }
+                                }
+                            } else {
+                                Text("Média: ~$avgCals kcal/dia", color = GreenPrimary, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                            }
+                            Spacer(Modifier.height(10.dp))
+                            // Melhoria #8 — Macro targets by DietMode
+                            val macroTargetKcal = tdee ?: (avgCals * plan.days.size)
+                            val proteinTargetG: Int
+                            val carbsTargetG: Int
+                            val fatTargetG: Int
+                            when (dietMode) {
+                                DietMode.HIGH_PROTEIN -> { proteinTargetG = (macroTargetKcal * 0.40 / 4).toInt(); carbsTargetG = (macroTargetKcal * 0.35 / 4).toInt(); fatTargetG = (macroTargetKcal * 0.25 / 9).toInt() }
+                                DietMode.LOW_CARB -> { proteinTargetG = (macroTargetKcal * 0.35 / 4).toInt(); carbsTargetG = (macroTargetKcal * 0.15 / 4).toInt(); fatTargetG = (macroTargetKcal * 0.50 / 9).toInt() }
+                                DietMode.MEDITERRANEAN -> { proteinTargetG = (macroTargetKcal * 0.20 / 4).toInt(); carbsTargetG = (macroTargetKcal * 0.50 / 4).toInt(); fatTargetG = (macroTargetKcal * 0.30 / 9).toInt() }
+                                DietMode.BUDGET_MAX, DietMode.BALANCED, DietMode.FAMILY -> { proteinTargetG = (macroTargetKcal * 0.25 / 4).toInt(); carbsTargetG = (macroTargetKcal * 0.50 / 4).toInt(); fatTargetG = (macroTargetKcal * 0.25 / 9).toInt() }
+                                else -> { proteinTargetG = (macroTargetKcal * 0.30 / 4).toInt(); carbsTargetG = (macroTargetKcal * 0.40 / 4).toInt(); fatTargetG = (macroTargetKcal * 0.30 / 9).toInt() }
+                            }
+                            val weeklyProteinTarget = proteinTargetG * plan.days.size
+                            val weeklyCarbsTarget = carbsTargetG * plan.days.size
+                            val weeklyFatTarget = fatTargetG * plan.days.size
                             listOf(
-                                Triple("Proteína", totalProtein.toInt(), Color(0xFF64B5F6)),
-                                Triple("Carbs", totalCarbs.toInt(), Color(0xFFFFD740)),
-                                Triple("Gordura", totalFat.toInt(), Color(0xFFFF8A65)),
-                            ).forEach { (label, value, color) ->
+                                Triple("Proteína", totalProtein.toInt() to weeklyProteinTarget, Color(0xFF64B5F6)),
+                                Triple("Carbs", totalCarbs.toInt() to weeklyCarbsTarget, Color(0xFFFFD740)),
+                                Triple("Gordura", totalFat.toInt() to weeklyFatTarget, Color(0xFFFF8A65)),
+                            ).forEach { (label, valuePair, color) ->
+                                val (value, target) = valuePair
+                                val fraction = if (target > 0) (value.toFloat() / target.toFloat()).coerceIn(0f, 1f) else value.toFloat() / maxOf(weeklyProteinTarget, weeklyCarbsTarget, weeklyFatTarget).toFloat().coerceAtLeast(1f)
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(label, color = TextDisabled, fontSize = 11.sp, modifier = Modifier.width(70.dp))
                                     Box(modifier = Modifier.weight(1f).height(6.dp).clip(RoundedCornerShape(3.dp)).background(TextDisabled.copy(alpha = 0.15f))) {
-                                        Box(modifier = Modifier.fillMaxWidth(value.toFloat() / maxVal).height(6.dp).clip(RoundedCornerShape(3.dp)).background(color))
+                                        Box(modifier = Modifier.fillMaxWidth(fraction).height(6.dp).clip(RoundedCornerShape(3.dp)).background(color))
                                     }
                                     Spacer(Modifier.width(6.dp))
-                                    Text("${value}g", color = color, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(42.dp))
+                                    Text("${value}/${target}g", color = color, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(62.dp))
                                 }
                                 Spacer(Modifier.height(5.dp))
                             }
                         }
                     }
+                }
+            }
+            // Melhoria #8 — Weekly calorie chart
+            if (plan.days.isNotEmpty()) {
+                item {
+                    WeeklyCalorieChart(
+                        days = plan.days,
+                        planId = planId,
+                        eatenMeals = eatenMeals,
+                    )
                 }
             }
             item {
@@ -268,6 +435,44 @@ internal fun PlanTab(
                     }
                 }
             }
+            // "Today" pinned card
+            val todayDow2 = run {
+                val jdow = java.time.LocalDate.now().dayOfWeek.value
+                if (jdow == 7) 0 else jdow
+            }
+            val todayDay = plan.days.find { it.dayOfWeek == todayDow2 }
+            if (todayDay != null) {
+                item {
+                    val bf = parseMeal(todayDay.breakfast)
+                    val lu = parseMeal(todayDay.lunch)
+                    val di = parseMeal(todayDay.dinner)
+                    val todayColor = DAY_COLORS.getOrElse(todayDow2) { GreenPrimary }
+                    Card(
+                        modifier = Modifier.fillMaxWidth().clickable { onDayClick(todayDay) },
+                        shape = RoundedCornerShape(14.dp),
+                        colors = CardDefaults.cardColors(containerColor = todayColor.copy(alpha = 0.08f)),
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("📅", fontSize = 16.sp)
+                                Spacer(Modifier.width(8.dp))
+                                Text("Hoje — ${DAY_FULL_NAMES.getOrElse(todayDow2) { "Hoje" }}", color = todayColor, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                Spacer(Modifier.weight(1f))
+                                todayDay.calories?.let { Text("🔥 $it kcal", color = todayColor, fontSize = 12.sp) }
+                            }
+                            Spacer(Modifier.height(8.dp))
+                            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                bf?.let { Text("☀️ ${it.name}", color = TextPrimary, fontSize = 12.sp) }
+                                lu?.let { Text("🌤 ${it.name}", color = TextSecondary, fontSize = 12.sp) }
+                                    ?: Text("🌤 Almoço fora de casa", color = TextDisabled, fontSize = 12.sp)
+                                di?.let { Text("🌙 ${it.name}", color = TextSecondary, fontSize = 12.sp) }
+                                    ?: Text("🌙 Jantar fora de casa", color = TextDisabled, fontSize = 12.sp)
+                            }
+                        }
+                    }
+                }
+            }
+
             val costPerDay = (plan.shoppingList?.totalEstimate ?: 0.0).let { total ->
                 if (plan.days.isNotEmpty()) total / plan.days.size else null
             }
@@ -282,7 +487,26 @@ internal fun PlanTab(
                 }
             }
             items(filteredDays) { day ->
-                DayCard(day = day, scheduleType = scheduleByDay[day.dayOfWeek]?.dayType, costPerDay = costPerDay, onClick = { onDayClick(day) })
+                DayCard(day = day, scheduleType = scheduleByDay[day.dayOfWeek]?.dayType, costPerDay = costPerDay, planId = planId, eatenMeals = eatenMeals, onClick = { onDayClick(day) })
+            }
+        }
+        if (!tips.isNullOrBlank() && plan != null) {
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = CardDefaults.cardColors(containerColor = GreenPrimary.copy(alpha = 0.07f)),
+                ) {
+                    Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.Top) {
+                        Text("💡", fontSize = 18.sp)
+                        Spacer(Modifier.width(10.dp))
+                        Column {
+                            Text("Dica da IA", color = GreenPrimary, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            Spacer(Modifier.height(4.dp))
+                            Text(tips, color = TextSecondary, fontSize = 12.sp, lineHeight = 18.sp)
+                        }
+                    }
+                }
             }
         }
         item { Spacer(Modifier.height(80.dp)) }
@@ -290,7 +514,7 @@ internal fun PlanTab(
 }
 
 @Composable
-internal fun DayCard(day: MealPlanDayDto, scheduleType: String?, costPerDay: Double? = null, onClick: () -> Unit) {
+internal fun DayCard(day: MealPlanDayDto, scheduleType: String?, costPerDay: Double? = null, planId: Int = 0, eatenMeals: Set<String> = emptySet(), onClick: () -> Unit) {
     val breakfast = parseMeal(day.breakfast)
     val lunch = parseMeal(day.lunch)
     val dinner = parseMeal(day.dinner)
@@ -337,19 +561,126 @@ internal fun DayCard(day: MealPlanDayDto, scheduleType: String?, costPerDay: Dou
                         }
                     }
                     Spacer(Modifier.height(5.dp))
+                    // Melhoria #9 — kcal per meal shown in chips
                     Row(
                         modifier = Modifier.horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(5.dp),
                     ) {
-                        if (breakfast != null) MacroChip("☀️ ${breakfast.name.take(16)}", dayColor)
-                        if (lunch != null) MacroChip("🌤 ${lunch.name.take(16)}", Color(0xFF64B5F6))
-                        else if (scheduleType == "WORK" || scheduleType == "HALF_OFF") MacroChip("🌤 Fora", TextDisabled)
-                        if (dinner != null) MacroChip("🌙 ${dinner.name.take(16)}", Color(0xFFCE93D8))
-                        else if (scheduleType == "WORK") MacroChip("🌙 Fora", TextDisabled)
+                        val bfEaten = "${planId}_${day.dayOfWeek}_breakfast" in eatenMeals
+                        val luEaten = "${planId}_${day.dayOfWeek}_lunch" in eatenMeals
+                        val diEaten = "${planId}_${day.dayOfWeek}_dinner" in eatenMeals
+                        if (breakfast != null) {
+                            val kcalStr = if (breakfast.calories > 0) " · ${breakfast.calories}k" else ""
+                            MacroChip("${if (bfEaten) "✓ " else "☀️ "}${breakfast.name.take(14)}$kcalStr", if (bfEaten) GreenPrimary else dayColor)
+                        }
+                        if (lunch != null) {
+                            val kcalStr = if (lunch.calories > 0) " · ${lunch.calories}k" else ""
+                            MacroChip("${if (luEaten) "✓ " else "🌤 "}${lunch.name.take(14)}$kcalStr", if (luEaten) GreenPrimary else Color(0xFF64B5F6))
+                        } else if (scheduleType == "WORK" || scheduleType == "HALF_OFF") MacroChip("🌤 Fora", TextDisabled)
+                        if (dinner != null) {
+                            val kcalStr = if (dinner.calories > 0) " · ${dinner.calories}k" else ""
+                            MacroChip("${if (diEaten) "✓ " else "🌙 "}${dinner.name.take(14)}$kcalStr", if (diEaten) GreenPrimary else Color(0xFFCE93D8))
+                        } else if (scheduleType == "WORK") MacroChip("🌙 Fora", TextDisabled)
                         if (hasSnack) MacroChip("🍎 Lanche", Color(0xFFFFD740))
                     }
                 }
                 Text("›", color = TextDisabled, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 6.dp))
+            }
+        }
+    }
+}
+
+// Melhoria #8 — Weekly calorie bar chart
+@Composable
+internal fun WeeklyCalorieChart(
+    days: List<MealPlanDayDto>,
+    planId: Int,
+    eatenMeals: Set<String>,
+) {
+    if (days.isEmpty()) return
+    val sortedDays = days.sortedBy { it.dayOfWeek }
+    val maxCal = sortedDays.maxOfOrNull { it.calories ?: 0 }?.takeIf { it > 0 } ?: return
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = CardBackground),
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Text("📊 Calorias por dia", color = TextSecondary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth().height(90.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.Bottom,
+            ) {
+                sortedDays.forEach { day ->
+                    val totalCal = day.calories ?: 0
+                    val mealTypes = listOf("breakfast", "lunch", "dinner")
+                    val eatenCount = mealTypes.count { type -> "${planId}_${day.dayOfWeek}_$type" in eatenMeals }
+                    val eatenFraction = (eatenCount.toFloat() / 3f).coerceIn(0f, 1f)
+                    val barFrac = (totalCal.toFloat() / maxCal.toFloat()).coerceIn(0.04f, 1f)
+                    val dayColor = DAY_COLORS.getOrElse(day.dayOfWeek) { GreenPrimary }
+
+                    Column(
+                        modifier = Modifier.weight(1f).padding(horizontal = 2.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Bottom,
+                    ) {
+                        if (totalCal > 0) {
+                            Text(
+                                "${totalCal}",
+                                color = dayColor.copy(alpha = 0.65f),
+                                fontSize = 7.sp,
+                                textAlign = TextAlign.Center,
+                            )
+                        }
+                        Spacer(Modifier.height(2.dp))
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height((72 * barFrac).dp)
+                                .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
+                                .background(dayColor.copy(alpha = 0.18f)),
+                            contentAlignment = Alignment.BottomCenter,
+                        ) {
+                            if (eatenFraction > 0f) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .fillMaxHeight(eatenFraction)
+                                        .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
+                                        .background(dayColor),
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(4.dp))
+            // X axis labels
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                sortedDays.forEach { day ->
+                    Text(
+                        DAY_NAMES.getOrElse(day.dayOfWeek) { "?" },
+                        color = TextDisabled,
+                        fontSize = 10.sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            // Legend
+            Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Box(Modifier.size(10.dp).clip(RoundedCornerShape(2.dp)).background(GreenPrimary))
+                    Text("Comido", color = TextDisabled, fontSize = 10.sp)
+                }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Box(Modifier.size(10.dp).clip(RoundedCornerShape(2.dp)).background(GreenPrimary.copy(alpha = 0.18f)))
+                    Text("Planeado", color = TextDisabled, fontSize = 10.sp)
+                }
             }
         }
     }

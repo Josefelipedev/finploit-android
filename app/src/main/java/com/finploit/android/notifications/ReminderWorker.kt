@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import com.finploit.android.data.repository.GoalRepository
 import com.finploit.android.data.repository.RecurringRepository
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
@@ -16,10 +17,17 @@ class ReminderWorker @AssistedInject constructor(
     @Assisted context: Context,
     @Assisted workerParams: WorkerParameters,
     private val recurringRepository: RecurringRepository,
+    private val goalRepository: GoalRepository,
     private val notificationHelper: NotificationHelper,
 ) : CoroutineWorker(context, workerParams) {
 
     override suspend fun doWork(): Result {
+        checkRecurringBills()
+        checkGoalProgress()
+        return Result.success()
+    }
+
+    private suspend fun checkRecurringBills() {
         val today = Calendar.getInstance().get(Calendar.DAY_OF_MONTH)
         val tomorrow = if (today == Calendar.getInstance().getActualMaximum(Calendar.DAY_OF_MONTH)) 1 else today + 1
         val currency = NumberFormat.getCurrencyInstance(Locale("pt", "BR"))
@@ -27,20 +35,42 @@ class ReminderWorker @AssistedInject constructor(
         recurringRepository.getAll()
             .onSuccess { transactions ->
                 transactions
-                    .filter { it.dueDay == today || it.dueDay == tomorrow }
+                    .filter { it.dueDay != null && (it.dueDay == today || it.dueDay == tomorrow) }
                     .forEachIndexed { index, tx ->
                         val dayLabel = if (tx.dueDay == today) "hoje" else "amanhã"
                         val typeLabel = if (tx.type == "expense") "Conta" else "Entrada"
-                        val title = "$typeLabel vence $dayLabel"
-                        val body = "${tx.description ?: tx.type}: ${currency.format(tx.amount)}"
-                        notificationHelper.sendRecurringReminder(
+                        notificationHelper.sendNotification(
                             id = 1000 + index,
-                            title = title,
-                            body = body,
+                            channelId = NotificationHelper.CHANNEL_RECURRING,
+                            title = "$typeLabel vence $dayLabel",
+                            body = "${tx.description ?: tx.type}: ${currency.format(tx.amount)}",
                         )
                     }
             }
+    }
 
-        return Result.success()
+    private suspend fun checkGoalProgress() {
+        goalRepository.getGoals()
+            .onSuccess { goals ->
+                goals.forEachIndexed { index, goal ->
+                    val current = goal.currentValue ?: 0.0
+                    val target = goal.targetValue
+                    val progress = if (target > 0) current / target else 0.0
+                    when {
+                        progress >= 1.0 -> notificationHelper.sendNotification(
+                            id = 2000 + index,
+                            channelId = NotificationHelper.CHANNEL_GOALS,
+                            title = "🎯 Meta atingida!",
+                            body = "Parabéns! Atingiste a meta \"${goal.name}\" de €%.2f".format(target),
+                        )
+                        progress >= 0.9 -> notificationHelper.sendNotification(
+                            id = 2000 + index,
+                            channelId = NotificationHelper.CHANNEL_GOALS,
+                            title = "🎯 Quase lá!",
+                            body = "A meta \"${goal.name}\" está a ${(progress * 100).toInt()}% — faltam €%.2f".format(target - current),
+                        )
+                    }
+                }
+            }
     }
 }

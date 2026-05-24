@@ -1,4 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">FinPloit</string>
+    <string name="shortcut_add_expense_short">Despesa</string>
+    <string name="shortcut_add_expense_long">Adicionar Despesa</string>
+    <string name="shortcut_add_income_short">Receita</string>
+    <string name="shortcut_add_income_long">Adicionar Receita</string>
+    <string name="shortcut_disabled">Shortcut desactivado</string>
+    <string name="balance_widget_title">Saldo FinPloit</string>
 </resources>

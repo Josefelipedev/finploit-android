@@ -2,6 +2,7 @@ package com.finploit.android.ui.auth
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -65,6 +66,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.finploit.android.BuildConfig
 import com.finploit.android.ui.theme.BackgroundDark
 import com.finploit.android.ui.theme.CardElevated
+import com.finploit.android.ui.theme.GreenLight
 import com.finploit.android.ui.theme.GreenPrimary
 import com.finploit.android.ui.theme.TextDisabled
 import com.finploit.android.ui.theme.TextPrimary
@@ -77,6 +79,7 @@ import kotlinx.coroutines.launch
 fun LoginScreen(
     viewModel: LoginViewModel,
     onLoginSuccess: () -> Unit,
+    onNavigateToRegister: () -> Unit = {},
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -191,7 +194,7 @@ fun LoginScreen(
                     .clip(RoundedCornerShape(14.dp))
                     .background(
                         if (email.isNotBlank() && password.isNotBlank() && !uiState.isLoading)
-                            Brush.horizontalGradient(listOf(GreenPrimary, Color(0xFF00E676)))
+                            Brush.horizontalGradient(listOf(GreenPrimary, GreenLight))
                         else
                             Brush.horizontalGradient(listOf(TextDisabled, TextDisabled))
                     ),
@@ -287,13 +290,29 @@ fun LoginScreen(
                 )
             }
 
+            Spacer(Modifier.height(24.dp))
+
+            Row(
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("Não tens conta? ", color = TextDisabled, fontSize = 14.sp)
+                Text(
+                    "Criar conta",
+                    color = GreenPrimary,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 14.sp,
+                    modifier = Modifier.clickable { onNavigateToRegister() },
+                )
+            }
+
             Spacer(Modifier.height(48.dp))
         }
     }
 }
 
 @Composable
-private fun fieldColors() = OutlinedTextFieldDefaults.colors(
+internal fun fieldColors() = OutlinedTextFieldDefaults.colors(
     focusedBorderColor = GreenPrimary,
     focusedLabelColor = GreenPrimary,
     cursorColor = GreenPrimary,

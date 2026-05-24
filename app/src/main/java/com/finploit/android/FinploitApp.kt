@@ -24,5 +24,6 @@ class FinploitApp : Application(), Configuration.Provider {
         notificationHelper.createNotificationChannel()
         WorkManagerScheduler.scheduleDailyReminder(this)
         WorkManagerScheduler.scheduleWeeklyShoppingReminder(this)
+        WorkManagerScheduler.scheduleMealReminders(this)
     }
 }

@@ -3,6 +3,10 @@ package com.finploit.android.ui.mealplanner
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -29,6 +33,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.finploit.android.data.api.EnrichItem
@@ -59,17 +64,28 @@ fun MealPlannerScreen(
 
     if (state.selectedDay != null) {
         val planId = state.plan?.id ?: 0
+        val planDays = state.plan?.days ?: emptyList()
         MealDayScreen(
             day = state.selectedDay!!,
             scheduleType = state.selectedDayScheduleType,
             lunchAtWork = state.selectedDayLunchAtWork,
             dinnerAtWork = state.selectedDayDinnerAtWork,
             planId = planId,
+            planDays = planDays,
             eatenMeals = state.eatenMeals,
             mealRatings = state.mealRatings,
+            favoriteMeals = state.favoriteMeals,
+            lockedMeals = state.lockedMeals,
+            mealNotes = state.mealNotes,
+            isSubstituting = state.isSubstituting,
             onToggleEaten = viewModel::toggleEatenMeal,
             onRateMeal = viewModel::rateMeal,
+            onToggleFavorite = viewModel::toggleFavoriteMeal,
+            onToggleLocked = viewModel::toggleLockedMeal,
+            onSetNote = viewModel::setMealNote,
+            onSubstituteMeal = { dayId, mealType, prefs -> viewModel.substituteMeal(dayId, mealType, prefs) },
             onBack = viewModel::clearSelectedDay,
+            onNavigateDay = { day -> viewModel.selectDay(day, state.schedule.find { it.dayOfWeek == day.dayOfWeek }) },
         )
         return
     }
@@ -86,11 +102,37 @@ fun MealPlannerScreen(
             modifier = Modifier.fillMaxSize().padding(innerPadding).background(BackgroundDark),
         ) {
             TopAppBar(
-                title = { Text("Alimentação", fontWeight = FontWeight.Bold, color = TextPrimary) },
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Alimentação", fontWeight = FontWeight.Bold, color = TextPrimary)
+                        if (state.isOffline) {
+                            Spacer(modifier = Modifier.size(8.dp))
+                            Text("(offline)", fontSize = 11.sp, color = TextDisabled)
+                        }
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = BackgroundDark, titleContentColor = TextPrimary),
                 actions = {
                     IconButton(onClick = onPantryClick) {
-                        Text("🏠", fontSize = 18.sp)
+                        Box {
+                            Text("🏠", fontSize = 18.sp)
+                            if (state.pantryItemCount > 0) {
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .size(16.dp)
+                                        .background(GreenPrimary, CircleShape),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Text(
+                                        if (state.pantryItemCount > 9) "9+" else "${state.pantryItemCount}",
+                                        color = BackgroundDark,
+                                        fontSize = 8.sp,
+                                        fontWeight = FontWeight.Bold,
+                                    )
+                                }
+                            }
+                        }
                     }
                     IconButton(onClick = viewModel::load) {
                         Icon(Icons.Default.Refresh, contentDescription = "Atualizar", tint = GreenPrimary)
@@ -142,6 +184,12 @@ fun MealPlannerScreen(
                         prepTimeFilter = state.prepTimeFilter,
                         onSetPrepTimeFilter = viewModel::setPrepTimeFilter,
                         onDayClick = { day -> viewModel.selectDay(day, state.schedule.find { it.dayOfWeek == day.dayOfWeek }) },
+                        dietMode = state.dietMode,
+                        eatenMeals = state.eatenMeals,
+                        planId = state.plan?.id ?: 0,
+                        tips = state.plan?.tips,
+                        favoriteMeals = state.favoriteMeals,
+                        tdee = state.tdee,
                     )
                     MealTab.SHOPPING -> ShoppingTab(
                         items = state.plan?.shoppingList?.items ?: emptyList(),
@@ -154,11 +202,21 @@ fun MealPlannerScreen(
                         enrichedItems = state.enrichedItems,
                         isEnrichingPrices = state.isEnrichingPrices,
                         onEnrichPrices = viewModel::enrichMealPrices,
+                        enrichedAt = state.enrichedAt,
                         shoppingFilter = state.shoppingFilter,
                         onFilterChange = viewModel::setShoppingFilter,
                         collapsedCategories = state.collapsedCategories,
                         onToggleCategory = viewModel::toggleCategoryCollapse,
                         onBuyAllInCategory = viewModel::buyAllInCategory,
+                        onResetShopping = viewModel::resetShoppingList,
+                        isResettingShopping = state.isResettingShopping,
+                        pantryAddSuggestion = state.pantryAddSuggestion,
+                        onDismissPantrySuggestion = viewModel::dismissPantrySuggestion,
+                        onAddSuggestionToPantry = viewModel::addSuggestionToPantry,
+                        onAddCustomItem = viewModel::addCustomShoppingItem,
+                        onUpdateActualPrice = viewModel::updateActualPrice,
+                        selectedSupermarketFilter = state.shoppingSupFilter,
+                        onSupermarketFilterChange = viewModel::setShoppingSupFilter,
                     )
                     MealTab.SCHEDULE -> ScheduleTab(
                         schedule = state.schedule,
@@ -174,8 +232,12 @@ fun MealPlannerScreen(
                         onSaveProfile = viewModel::saveProfile,
                         dietaryPreferences = state.dietaryPreferences,
                         mealPrepMode = state.mealPrepMode,
+                        dietMode = state.dietMode,
                         onToggleDietaryPref = viewModel::toggleDietaryPreference,
                         onSetMealPrepMode = viewModel::setMealPrepMode,
+                        onSetDietMode = viewModel::setDietMode,
+                        breakfastAtWork = state.breakfastAtWork,
+                        onToggleBreakfastAtWork = viewModel::toggleBreakfastAtWork,
                     )
                     MealTab.HISTORY -> HistoryTab(
                         plans = state.allPlans,
@@ -185,6 +247,8 @@ fun MealPlannerScreen(
                         onRefresh = viewModel::loadHistory,
                         onDeletePlan = viewModel::deletePlan,
                         onClearAll = viewModel::clearHistory,
+                        onLoadPlanDays = viewModel::loadPlanDaysForHistory,
+                        eatenMeals = state.eatenMeals,
                     )
                 }
             }

@@ -53,6 +53,7 @@ data class MealShoppingItemDto(
     val quantity: Double,
     val unit: String,
     val estimatedPrice: Double?,
+    val actualPrice: Double? = null,
     val category: String?,
     val purchased: Boolean,
     val usedInDays: String? = null, // JSON string e.g. "[0,2,4]"
@@ -88,6 +89,29 @@ data class GeneratePlanRequest(
     val currencySymbol: String? = null,
     val currencyLocale: String? = null,
     val mealPrepMode: Boolean? = null,
+    val dietMode: String? = null,
+    val badMeals: List<String>? = null,
+    val favoriteMeals: List<String>? = null,
+)
+
+data class AddShoppingItemRequest(
+    val name: String,
+    val quantity: Double,
+    val unit: String,
+    val category: String? = null,
+    val estimatedPrice: Double? = null,
+)
+
+data class UpdateActualPriceRequest(val actualPrice: Double?)
+
+data class SubstituteMealRequest(
+    val mealType: String,
+    val preferences: String? = null,
+)
+
+data class SubstituteMealResponse(
+    val day: MealPlanDayDto,
+    val meal: MealDetailDto,
 )
 
 data class UserProfileDto(

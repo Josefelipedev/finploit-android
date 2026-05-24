@@ -43,7 +43,7 @@ class ProfileViewModel @Inject constructor(
     }
 
     fun setCurrency(code: String) {
-        viewModelScope.launch { preferencesRepository.setCurrencyCode(code) }
+        viewModelScope.launch { authRepository.updateCurrency(code) }
     }
 
     fun logout() = authRepository.logout()

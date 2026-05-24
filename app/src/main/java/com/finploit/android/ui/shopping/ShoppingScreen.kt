@@ -272,7 +272,7 @@ private fun ShoppingListCard(
     onClick: () -> Unit,
     onDelete: () -> Unit,
 ) {
-    val total = list.items.sumOf { (it.price ?: 0.0) * it.quantity }
+    val total = list.items.sumOf { it.price ?: 0.0 }
     val purchased = list.items.count { it.purchased }
     val totalItems = list.items.size
 

@@ -3,6 +3,7 @@ package com.finploit.android.ui.main
 import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.unit.sp
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Dashboard
@@ -42,6 +43,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import com.finploit.android.data.api.EnrichItem
 import com.finploit.android.data.dto.FinanceItemDto
 import com.finploit.android.data.dto.ShoppingListDto
+import com.finploit.android.ui.budget.BudgetLimitsScreen
+import com.finploit.android.ui.calendar.CalendarScreen
 import com.finploit.android.ui.grocery.GrocerySearchScreen
 import com.finploit.android.ui.grocery.GrocerySearchViewModel
 import com.finploit.android.ui.pantry.PantryScreen
@@ -54,7 +57,10 @@ import com.finploit.android.ui.dashboard.DashboardScreen
 import com.finploit.android.ui.goals.AddGoalScreen
 import com.finploit.android.ui.goals.GoalsScreen
 import com.finploit.android.ui.profile.ProfileScreen
+import com.finploit.android.ui.receipt.ReceiptScanScreen
 import com.finploit.android.ui.recurring.AddRecurringScreen
+import com.finploit.android.ui.report.MonthlyReportScreen
+import com.finploit.android.ui.search.GlobalSearchScreen
 import com.finploit.android.ui.shopping.AddShoppingListScreen
 import com.finploit.android.ui.shopping.ShoppingListDetailScreen
 import com.finploit.android.ui.shopping.ShoppingScreen
@@ -71,7 +77,7 @@ import com.finploit.android.ui.transactions.TransactionsScreen
 
 sealed class BottomNav(val route: String, val label: String, val icon: ImageVector) {
     data object Dashboard : BottomNav("dashboard", "Início", Icons.Default.Dashboard)
-    data object Transactions : BottomNav("transactions", "Finanças", Icons.Default.List)
+    data object Transactions : BottomNav("transactions", "Finanças", Icons.AutoMirrored.Filled.List)
     data object Goals : BottomNav("goals", "Metas", Icons.Default.EmojiEvents)
     data object Shopping : BottomNav("shopping", "Compras", Icons.Default.ShoppingCart)
     data object Meals : BottomNav("meals", "Comida", Icons.Default.RestaurantMenu)
@@ -101,6 +107,11 @@ fun MainScreen(onLogout: () -> Unit) {
     var showNotifications by remember { mutableStateOf(false) }
     var showGrocerySearch by remember { mutableStateOf(false) }
     var showPantry by remember { mutableStateOf(false) }
+    var showBudgetLimits by remember { mutableStateOf(false) }
+    var showMonthlyReport by remember { mutableStateOf(false) }
+    var showCalendar by remember { mutableStateOf(false) }
+    var showGlobalSearch by remember { mutableStateOf(false) }
+    var showReceiptScan by remember { mutableStateOf(false) }
     var groceryInitialItems by remember { mutableStateOf<List<EnrichItem>>(emptyList()) }
     var groceryListTabLabel by remember { mutableStateOf("Lista de Itens") }
     var selectedShoppingList by remember { mutableStateOf<ShoppingListDto?>(null) }
@@ -131,6 +142,16 @@ fun MainScreen(onLogout: () -> Unit) {
                 NotificationsScreen(viewModel = notificationsViewModel, onBack = { showNotifications = false })
             showPantry ->
                 PantryScreen(viewModel = hiltViewModel(), onBack = { showPantry = false })
+            showBudgetLimits ->
+                BudgetLimitsScreen(viewModel = hiltViewModel(), onBack = { showBudgetLimits = false })
+            showMonthlyReport ->
+                MonthlyReportScreen(viewModel = hiltViewModel(), onBack = { showMonthlyReport = false })
+            showCalendar ->
+                CalendarScreen(viewModel = hiltViewModel(), onBack = { showCalendar = false })
+            showGlobalSearch ->
+                GlobalSearchScreen(viewModel = hiltViewModel(), onBack = { showGlobalSearch = false })
+            showReceiptScan ->
+                ReceiptScanScreen(viewModel = hiltViewModel(), onBack = { showReceiptScan = false })
             showGrocerySearch ->
                 GrocerySearchScreen(
                     viewModel = groceryViewModel,
@@ -240,6 +261,11 @@ fun MainScreen(onLogout: () -> Unit) {
                                 onProfileClick = { showProfile = true },
                                 onNotificationsClick = { showNotifications = true },
                                 onAddRecurringClick = { showAddRecurring = true },
+                                onBudgetClick = { showBudgetLimits = true },
+                                onReportClick = { showMonthlyReport = true },
+                                onCalendarClick = { showCalendar = true },
+                                onSearchClick = { showGlobalSearch = true },
+                                onScanReceiptClick = { showReceiptScan = true },
                             )
                         }
                         composable(BottomNav.Transactions.route) {

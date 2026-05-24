@@ -19,26 +19,39 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Wallet
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -65,8 +78,14 @@ fun DashboardScreen(
     onProfileClick: () -> Unit = {},
     onNotificationsClick: () -> Unit = {},
     onAddRecurringClick: () -> Unit = {},
+    onBudgetClick: () -> Unit = {},
+    onReportClick: () -> Unit = {},
+    onCalendarClick: () -> Unit = {},
+    onSearchClick: () -> Unit = {},
+    onScanReceiptClick: () -> Unit = {},
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    var showOverflowMenu by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) { viewModel.loadDashboard() }
 
@@ -78,7 +97,7 @@ fun DashboardScreen(
         TopAppBar(
             title = {
                 Text(
-                    "Dashboard",
+                    "FinPloit",
                     fontWeight = FontWeight.Bold,
                     color = TextPrimary,
                     fontSize = 20.sp,
@@ -89,14 +108,55 @@ fun DashboardScreen(
                 titleContentColor = TextPrimary,
             ),
             actions = {
+                // Pesquisa — ação primária sempre visível
+                IconButton(onClick = onSearchClick) {
+                    Icon(Icons.Default.Search, contentDescription = "Pesquisa", tint = TextSecondary)
+                }
+                // Notificações — sempre visível
                 IconButton(onClick = onNotificationsClick) {
                     Icon(Icons.Default.Notifications, contentDescription = "Próximas contas", tint = TextSecondary)
                 }
-                IconButton(onClick = viewModel::loadDashboard) {
-                    Icon(Icons.Default.Refresh, contentDescription = "Atualizar", tint = GreenPrimary)
-                }
+                // Perfil — sempre visível
                 IconButton(onClick = onProfileClick) {
                     Icon(Icons.Default.Person, contentDescription = "Perfil", tint = TextSecondary)
+                }
+                // Menu de overflow (⋮) para acções secundárias
+                Box {
+                    IconButton(onClick = { showOverflowMenu = true }) {
+                        Icon(Icons.Default.MoreVert, contentDescription = "Mais opções", tint = TextSecondary)
+                    }
+                    DropdownMenu(
+                        expanded = showOverflowMenu,
+                        onDismissRequest = { showOverflowMenu = false },
+                        containerColor = CardBackground,
+                    ) {
+                        DashboardMenuItem(
+                            icon = Icons.Default.CalendarMonth,
+                            label = "Calendário",
+                            onClick = { showOverflowMenu = false; onCalendarClick() },
+                        )
+                        DashboardMenuItem(
+                            icon = Icons.Default.PieChart,
+                            label = "Relatório mensal",
+                            onClick = { showOverflowMenu = false; onReportClick() },
+                        )
+                        DashboardMenuItem(
+                            icon = Icons.Default.Wallet,
+                            label = "Limites de orçamento",
+                            onClick = { showOverflowMenu = false; onBudgetClick() },
+                        )
+                        DashboardMenuItem(
+                            icon = Icons.Default.CameraAlt,
+                            label = "Digitalizar recibo",
+                            onClick = { showOverflowMenu = false; onScanReceiptClick() },
+                        )
+                        DashboardMenuItem(
+                            icon = Icons.Default.Refresh,
+                            label = "Actualizar",
+                            onClick = { showOverflowMenu = false; viewModel.loadDashboard() },
+                            tint = GreenPrimary,
+                        )
+                    }
                 }
             }
         )
@@ -327,3 +387,18 @@ private fun TransactionItem(tx: TransactionDto) {
 @Composable
 private fun formatCurrency(value: Double): String =
     LocalCurrencyConfig.current.format(value)
+
+@Composable
+private fun DashboardMenuItem(
+    icon: ImageVector,
+    label: String,
+    onClick: () -> Unit,
+    tint: Color = TextSecondary,
+) {
+    DropdownMenuItem(
+        text = { Text(label, color = TextPrimary, fontSize = 14.sp) },
+        leadingIcon = { Icon(icon, contentDescription = label, tint = tint, modifier = Modifier.size(20.dp)) },
+        onClick = onClick,
+        colors = MenuDefaults.itemColors(textColor = TextPrimary),
+    )
+}

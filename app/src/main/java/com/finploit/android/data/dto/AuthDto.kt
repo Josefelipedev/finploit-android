@@ -41,4 +41,11 @@ data class UserDto(
     val phone: String?,
     val firstName: String?,
     val lastName: String?,
+    val currency: String? = null,
+)
+
+data class UpdateProfileRequest(
+    val currency: String? = null,
+    val name: String? = null,
+    val displayName: String? = null,
 )

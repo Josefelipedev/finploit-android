@@ -10,10 +10,12 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.finploit.android.ui.auth.LoginScreen
 import com.finploit.android.ui.auth.LoginViewModel
+import com.finploit.android.ui.auth.RegisterScreen
 import com.finploit.android.ui.main.MainScreen
 
 sealed class Route(val path: String) {
     data object Login : Route("login")
+    data object Register : Route("register")
     data object Main : Route("main")
 }
 
@@ -35,7 +37,23 @@ fun AppNavGraph(
                     navController.navigate(Route.Main.path) {
                         popUpTo(Route.Login.path) { inclusive = true }
                     }
-                }
+                },
+                onNavigateToRegister = {
+                    navController.navigate(Route.Register.path)
+                },
+            )
+        }
+        composable(Route.Register.path) {
+            RegisterScreen(
+                viewModel = hiltViewModel(),
+                onRegisterSuccess = {
+                    navController.navigate(Route.Main.path) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                },
+                onNavigateToLogin = {
+                    navController.popBackStack()
+                },
             )
         }
         composable(Route.Main.path) {

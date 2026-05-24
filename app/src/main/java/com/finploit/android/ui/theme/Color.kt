@@ -2,34 +2,34 @@ package com.finploit.android.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Brand
-val GreenPrimary = Color(0xFF00C853)     // vibrant green CTA
-val GreenDark = Color(0xFF009624)
-val GreenLight = Color(0xFF69F0AE)
-val Green80 = Color(0xFF00E676)          // keep for compatibility
+// Brand — verde mint suave (mais leve que neon)
+val GreenPrimary = Color(0xFF4ADE80)
+val GreenDark = Color(0xFF22C55E)
+val GreenLight = Color(0xFF86EFAC)
+val Green80 = Color(0xFF4ADE80)
 
-// Surfaces
-val BackgroundDark = Color(0xFF0A0F0A)   // near-black with green tint
-val SurfaceDark = Color(0xFF0F1A0F)      // main bg
-val CardBackground = Color(0xFF162516)   // cards
-val CardElevated = Color(0xFF1E331E)     // elevated cards / inputs
+// Surfaces — charcoal moderno neutro (sem tint verde)
+val BackgroundDark = Color(0xFF111118)
+val SurfaceDark = Color(0xFF16161E)
+val CardBackground = Color(0xFF1E1E2A)
+val CardElevated = Color(0xFF26263A)
 
 // Semantic
-val IncomeGreen = Color(0xFF00E676)
-val ExpenseRed = Color(0xFFFF5252)
-val WarningAmber = Color(0xFFFFD740)
-val TextPrimary = Color(0xFFE8F5E9)
-val TextSecondary = Color(0xFF81C784)
-val TextDisabled = Color(0xFF4A6B4A)
+val IncomeGreen = Color(0xFF4ADE80)
+val ExpenseRed = Color(0xFFFF6B6B)
+val WarningAmber = Color(0xFFFFD60A)
+val TextPrimary = Color(0xFFF0F0F8)
+val TextSecondary = Color(0xFF9090AA)
+val TextDisabled = Color(0xFF4A4A60)
 
-// Gradients (used as start/end)
-val GradientStart = Color(0xFF0A2E1A)
-val GradientEnd = Color(0xFF0D1B0D)
+// Gradients
+val GradientStart = Color(0xFF1A1A2E)
+val GradientEnd = Color(0xFF111118)
 
 // Legacy aliases kept for compatibility
 val GreenGrey80 = GreenLight
-val Teal80 = Color(0xFF00BFA5)
-val Green40 = Color(0xFF00897B)
-val GreenGrey40 = Color(0xFF43A047)
-val Teal40 = Color(0xFF00695C)
+val Teal80 = Color(0xFF2DD4BF)
+val Green40 = Color(0xFF16A34A)
+val GreenGrey40 = Color(0xFF4ADE80)
+val Teal40 = Color(0xFF0D9488)
 val OnSurfaceLight = TextPrimary
