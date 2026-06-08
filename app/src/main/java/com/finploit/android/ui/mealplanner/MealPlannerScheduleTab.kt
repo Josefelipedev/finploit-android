@@ -22,6 +22,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -30,6 +33,8 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
@@ -37,6 +42,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -44,6 +50,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -51,6 +58,7 @@ import com.finploit.android.data.dto.ScheduleItemDto
 import com.finploit.android.ui.theme.BackgroundDark
 import com.finploit.android.ui.theme.CardBackground
 import com.finploit.android.ui.theme.CardElevated
+import com.finploit.android.ui.theme.ExpenseRed
 import com.finploit.android.ui.theme.GreenPrimary
 import com.finploit.android.ui.theme.IncomeGreen
 import com.finploit.android.ui.theme.TextDisabled
@@ -79,8 +87,10 @@ internal fun ScheduleTab(
     onSetDietMode: (DietMode) -> Unit = {},
     breakfastAtWork: Set<Int> = emptySet(),
     onToggleBreakfastAtWork: (Int) -> Unit = {},
+    dislikedFoods: List<String> = emptyList(),
+    onAddDislikedFood: (String) -> Unit = {},
+    onRemoveDislikedFood: (String) -> Unit = {},
 ) {
-    // Melhoria #7: breakfast can now be marked as outside
     val breakfastStates = remember(schedule, breakfastAtWork) {
         (0..6).map { day -> mutableStateOf(day in breakfastAtWork) }
     }
@@ -185,9 +195,7 @@ internal fun ScheduleTab(
                             bmi < 30f -> "Sobrepeso"
                             else -> "Obesidade"
                         }
-                        val bmr = (10 * w + 6.25f * h - 155).toInt()
-                        val mult = mapOf("sedentary" to 1.2f, "light" to 1.375f, "moderate" to 1.55f, "active" to 1.725f, "very_active" to 1.9f)
-                        val tdee = (bmr * (mult[profileActivityLevel] ?: 1.55f)).toInt()
+                        val tdee = computeTdee(h, w, profileActivityLevel)
                         Row(
                             modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
                                 .background(GreenPrimary.copy(alpha = 0.08f)).padding(10.dp),
@@ -360,6 +368,87 @@ internal fun ScheduleTab(
         }
 
         item {
+            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = CardBackground)) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("🚫", fontSize = 18.sp)
+                        Spacer(Modifier.width(8.dp))
+                        Column {
+                            Text("Alimentos que não gosto", color = GreenPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            Text("A IA nunca vai incluir estes alimentos nas refeições.", color = TextDisabled, fontSize = 11.sp)
+                        }
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    var newFood by rememberSaveable { mutableStateOf("") }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        OutlinedTextField(
+                            value = newFood,
+                            onValueChange = { newFood = it },
+                            label = { Text("Ex: cebola, fígado, coentro...", fontSize = 11.sp) },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text, imeAction = ImeAction.Done),
+                            modifier = Modifier.weight(1f),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = ExpenseRed.copy(alpha = 0.7f),
+                                unfocusedBorderColor = TextDisabled.copy(alpha = 0.4f),
+                                focusedLabelColor = ExpenseRed.copy(alpha = 0.7f),
+                                unfocusedLabelColor = TextDisabled,
+                                focusedTextColor = TextPrimary,
+                                unfocusedTextColor = TextPrimary,
+                                cursorColor = ExpenseRed,
+                            ),
+                        )
+                        IconButton(
+                            onClick = {
+                                if (newFood.isNotBlank()) {
+                                    onAddDislikedFood(newFood.trim())
+                                    newFood = ""
+                                }
+                            },
+                            modifier = Modifier.size(44.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(GreenPrimary.copy(alpha = 0.15f)),
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = "Adicionar", tint = GreenPrimary)
+                        }
+                    }
+                    if (dislikedFoods.isNotEmpty()) {
+                        Spacer(Modifier.height(10.dp))
+                        dislikedFoods.forEach { food ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 3.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(ExpenseRed.copy(alpha = 0.07f))
+                                    .border(1.dp, ExpenseRed.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text("🚫", fontSize = 14.sp)
+                                Spacer(Modifier.width(8.dp))
+                                Text(food, color = TextPrimary, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                                IconButton(
+                                    onClick = { onRemoveDislikedFood(food) },
+                                    modifier = Modifier.size(28.dp),
+                                ) {
+                                    Icon(Icons.Default.Close, contentDescription = "Remover", tint = ExpenseRed, modifier = Modifier.size(16.dp))
+                                }
+                            }
+                        }
+                    } else {
+                        Spacer(Modifier.height(8.dp))
+                        Text("Nenhum alimento adicionado ainda.", color = TextDisabled, fontSize = 12.sp)
+                    }
+                }
+            }
+        }
+
+        item {
             Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = CardBackground)) {
                 Column(modifier = Modifier.padding(14.dp)) {
                     Text("🗓️ Onde você come cada refeição?", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
@@ -411,7 +500,6 @@ internal fun ScheduleTab(
                     }
                     Spacer(Modifier.height(12.dp))
 
-                    // Melhoria #7: breakfast is now unlocked
                     MealLocationRow(
                         emoji = "☀️", label = "Café da manhã",
                         atWork = isBreakfast.value, locked = false,

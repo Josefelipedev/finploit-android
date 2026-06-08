@@ -32,6 +32,8 @@ class UserPreferencesRepository @Inject constructor(
         val KEY_LOCKED_MEALS = stringPreferencesKey("meal_locked_meals")
         // Melhoria #10 — free-text notes per meal: JSON object {key: note}
         val KEY_MEAL_NOTES = stringPreferencesKey("meal_notes")
+        val KEY_CUSTOM_BUDGET = stringPreferencesKey("meal_custom_budget")
+        val KEY_DISLIKED_FOODS = stringPreferencesKey("meal_disliked_foods")
     }
 
     val currencyCode: Flow<String> = dataStore.data.map { prefs ->
@@ -112,4 +114,12 @@ class UserPreferencesRepository @Inject constructor(
     // Free-text notes per meal: JSON object {key: note}
     val mealNotes: Flow<String> = dataStore.data.map { it[KEY_MEAL_NOTES] ?: "{}" }
     suspend fun setMealNotes(json: String) { dataStore.edit { it[KEY_MEAL_NOTES] = json } }
+
+    // Custom budget amount (used when preset = CUSTOM)
+    val customBudget: Flow<String> = dataStore.data.map { it[KEY_CUSTOM_BUDGET] ?: "" }
+    suspend fun setCustomBudget(amount: String) { dataStore.edit { it[KEY_CUSTOM_BUDGET] = amount } }
+
+    // Disliked foods: JSON list of strings
+    val dislikedFoods: Flow<String> = dataStore.data.map { it[KEY_DISLIKED_FOODS] ?: "[]" }
+    suspend fun setDislikedFoods(json: String) { dataStore.edit { it[KEY_DISLIKED_FOODS] = json } }
 }

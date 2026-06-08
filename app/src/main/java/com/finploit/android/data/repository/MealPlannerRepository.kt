@@ -34,12 +34,17 @@ class MealPlannerRepository @Inject constructor(
     suspend fun getActivePlan(): Result<MealPlanDto?> = runCatching {
         api.getActivePlan()
     }.recoverCatching { e ->
-        if (e is retrofit2.HttpException && e.code() == 404) null
-        else throw e
+        when {
+            // Backend returns 404 when no active plan exists (correct path after fix)
+            e is retrofit2.HttpException && e.code() == 404 -> null
+            // Fallback: Retrofit NPE from empty/null body — treat as "no plan"
+            e is NullPointerException || e.message?.contains("was null but response body") == true -> null
+            else -> throw e
+        }
     }
 
-    suspend fun generatePlan(budget: Double? = null, currencyCode: String? = null, currencySymbol: String? = null, currencyLocale: String? = null, mealPrepMode: Boolean? = null, dietMode: String? = null, badMeals: List<String>? = null, favoriteMeals: List<String>? = null): Result<MealPlanDto> = runCatching {
-        api.generatePlan(GeneratePlanRequest(budget, currencyCode, currencySymbol, currencyLocale, mealPrepMode, dietMode, badMeals, favoriteMeals))
+    suspend fun generatePlan(budget: Double? = null, currencyCode: String? = null, currencySymbol: String? = null, currencyLocale: String? = null, mealPrepMode: Boolean? = null, dietMode: String? = null, badMeals: List<String>? = null, favoriteMeals: List<String>? = null, dislikedFoods: List<String>? = null): Result<MealPlanDto> = runCatching {
+        api.generatePlan(GeneratePlanRequest(budget, currencyCode, currencySymbol, currencyLocale, mealPrepMode, dietMode, badMeals, favoriteMeals, dislikedFoods))
     }.recoverCatching { e ->
         if (e is retrofit2.HttpException && e.code() == 404)
             throw Exception("Funcionalidade não disponível no servidor. Atualize o backend.")

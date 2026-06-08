@@ -92,6 +92,7 @@ data class GeneratePlanRequest(
     val dietMode: String? = null,
     val badMeals: List<String>? = null,
     val favoriteMeals: List<String>? = null,
+    val dislikedFoods: List<String>? = null,
 )
 
 data class AddShoppingItemRequest(

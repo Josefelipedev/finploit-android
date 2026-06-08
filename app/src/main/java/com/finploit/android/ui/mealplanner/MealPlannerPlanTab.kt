@@ -22,6 +22,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -36,6 +37,8 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -49,6 +52,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -86,6 +90,8 @@ internal fun PlanTab(
     tips: String? = null,
     favoriteMeals: Set<String> = emptySet(),
     tdee: Int? = null,
+    customBudgetText: String = "",
+    onCustomBudgetChange: (String) -> Unit = {},
 ) {
     val scheduleByDay = schedule.associateBy { it.dayOfWeek }
     val currencyConfig = LocalCurrencyConfig.current
@@ -117,7 +123,6 @@ internal fun PlanTab(
     ) {
         item { Spacer(Modifier.height(8.dp)) }
 
-        // Melhoria #2 — Streak / adherence card
         if (plan != null) {
             item {
                 val mealTypes = listOf("breakfast", "lunch", "dinner")
@@ -126,10 +131,19 @@ internal fun PlanTab(
                     mealTypes.count { type -> "${planId}_${day.dayOfWeek}_$type" in eatenMeals }
                 }
                 val adherencePct = if (totalPlanned > 0) (eatenCount * 100) / totalPlanned else 0
-                // Consecutive days with at least one meal eaten
-                val streak = plan.days.sortedBy { it.dayOfWeek }.takeWhile { day ->
-                    mealTypes.any { type -> "${planId}_${day.dayOfWeek}_$type" in eatenMeals }
-                }.size
+                // Consecutive days ending at today, going backward
+                val streak = remember(plan.id, eatenMeals) {
+                    val dowMap = plan.days.associateBy { it.dayOfWeek }
+                    var count = 0
+                    var checkDow = todayDowFromJava()
+                    repeat(plan.days.size) {
+                        val day = dowMap[checkDow] ?: return@remember count
+                        if (mealTypes.none { type -> "${planId}_${day.dayOfWeek}_$type" in eatenMeals }) return@remember count
+                        count++
+                        checkDow = if (checkDow == 0) 6 else checkDow - 1
+                    }
+                    count
+                }
                 val favoriteCount = favoriteMeals.count { it.startsWith("${planId}_") }
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -167,8 +181,8 @@ internal fun PlanTab(
         }
 
         item {
-            Column {
-                Text("Orçamento semanal", color = TextSecondary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(bottom = 8.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Orçamento semanal", color = TextSecondary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(BudgetPreset.entries) { preset ->
                         val isSelected = preset == selectedBudget
@@ -177,6 +191,7 @@ internal fun PlanTab(
                             BudgetPreset.BALANCED -> GreenPrimary
                             BudgetPreset.PREMIUM -> Color(0xFFFFD740)
                             BudgetPreset.FREE -> TextSecondary
+                            BudgetPreset.CUSTOM -> Color(0xFFCE93D8)
                         }
                         Column(
                             modifier = Modifier
@@ -192,6 +207,33 @@ internal fun PlanTab(
                             val desc = amount?.let { "~${currencyConfig.symbol}${it.toInt()}/sem" } ?: preset.description
                             Text(desc, color = if (isSelected) color.copy(alpha = 0.8f) else TextDisabled, fontSize = 11.sp)
                         }
+                    }
+                }
+                if (selectedBudget == BudgetPreset.CUSTOM) {
+                    OutlinedTextField(
+                        value = customBudgetText,
+                        onValueChange = onCustomBudgetChange,
+                        label = { Text("Valor personalizado (${currencyConfig.symbol})", fontSize = 12.sp) },
+                        placeholder = { Text("ex: 120", color = TextDisabled, fontSize = 13.sp) },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color(0xFFCE93D8),
+                            unfocusedBorderColor = TextDisabled.copy(alpha = 0.4f),
+                            focusedLabelColor = Color(0xFFCE93D8),
+                            unfocusedLabelColor = TextDisabled,
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary,
+                            cursorColor = Color(0xFFCE93D8),
+                        ),
+                    )
+                    if (customBudgetText.isNotBlank()) {
+                        Text(
+                            "A IA vai tentar respeitar o limite de ${currencyConfig.symbol}${customBudgetText}/semana",
+                            color = Color(0xFFCE93D8),
+                            fontSize = 11.sp,
+                        )
                     }
                 }
             }
@@ -277,14 +319,13 @@ internal fun PlanTab(
             }
         } else if (plan != null) {
             item {
-                val today = java.time.LocalDate.now()
+                val currentDow = remember { todayDowFromJava() }
                 val daysByDow = plan.days.associateBy { it.dayOfWeek }
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 4.dp)) {
                     items(7) { dow ->
                         val day = daysByDow[dow]
                         val dayColor = DAY_COLORS.getOrElse(dow) { GreenPrimary }
-                        val todayDow = if (today.dayOfWeek.value == 7) 0 else today.dayOfWeek.value
-                        val isToday = dow == todayDow
+                        val isToday = dow == currentDow
                         Column(
                             modifier = Modifier
                                 .width(52.dp)
@@ -345,8 +386,10 @@ internal fun PlanTab(
                 }
             }
             item {
-                val allMeals = plan.days.flatMap { d ->
-                    listOfNotNull(parseMeal(d.breakfast), parseMeal(d.lunch), parseMeal(d.dinner))
+                val allMeals = remember(plan.id) {
+                    plan.days.flatMap { d ->
+                        listOfNotNull(parseMeal(d.breakfast), parseMeal(d.lunch), parseMeal(d.dinner))
+                    }
                 }
                 if (allMeals.isNotEmpty()) {
                     val totalCals = allMeals.sumOf { it.calories }
@@ -358,7 +401,6 @@ internal fun PlanTab(
                         Column(modifier = Modifier.padding(14.dp)) {
                             Text("Resumo Nutricional Semanal", color = TextSecondary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                             Spacer(Modifier.height(6.dp))
-                            // Melhoria #1 — TDEE comparison
                             if (tdee != null) {
                                 val diff = avgCals - tdee
                                 val diffColor = when {
@@ -392,7 +434,6 @@ internal fun PlanTab(
                                 Text("Média: ~$avgCals kcal/dia", color = GreenPrimary, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                             }
                             Spacer(Modifier.height(10.dp))
-                            // Melhoria #8 — Macro targets by DietMode
                             val macroTargetKcal = tdee ?: (avgCals * plan.days.size)
                             val proteinTargetG: Int
                             val carbsTargetG: Int
@@ -428,7 +469,6 @@ internal fun PlanTab(
                     }
                 }
             }
-            // Melhoria #8 — Weekly calorie chart
             if (plan.days.isNotEmpty()) {
                 item {
                     WeeklyCalorieChart(
@@ -455,16 +495,13 @@ internal fun PlanTab(
                 }
             }
             // "Today" pinned card
-            val todayDow2 = run {
-                val jdow = java.time.LocalDate.now().dayOfWeek.value
-                if (jdow == 7) 0 else jdow
-            }
+            val todayDow2 = todayDowFromJava()
             val todayDay = plan.days.find { it.dayOfWeek == todayDow2 }
             if (todayDay != null) {
                 item {
-                    val bf = parseMeal(todayDay.breakfast)
-                    val lu = parseMeal(todayDay.lunch)
-                    val di = parseMeal(todayDay.dinner)
+                    val bf = remember(todayDay.breakfast) { parseMeal(todayDay.breakfast) }
+                    val lu = remember(todayDay.lunch) { parseMeal(todayDay.lunch) }
+                    val di = remember(todayDay.dinner) { parseMeal(todayDay.dinner) }
                     val todayColor = DAY_COLORS.getOrElse(todayDow2) { GreenPrimary }
                     Card(
                         modifier = Modifier.fillMaxWidth().clickable { onDayClick(todayDay) },
@@ -534,10 +571,10 @@ internal fun PlanTab(
 
 @Composable
 internal fun DayCard(day: MealPlanDayDto, scheduleType: String?, costPerDay: Double? = null, planId: Int = 0, eatenMeals: Set<String> = emptySet(), onClick: () -> Unit) {
-    val breakfast = parseMeal(day.breakfast)
-    val lunch = parseMeal(day.lunch)
-    val dinner = parseMeal(day.dinner)
-    val hasSnack = parseSnack(day.snacks) != null
+    val breakfast = remember(day.breakfast) { parseMeal(day.breakfast) }
+    val lunch = remember(day.lunch) { parseMeal(day.lunch) }
+    val dinner = remember(day.dinner) { parseMeal(day.dinner) }
+    val hasSnack = remember(day.snacks) { parseSnack(day.snacks) != null }
     val dayColor = DAY_COLORS.getOrElse(day.dayOfWeek) { GreenPrimary }
     val typeColor = scheduleType?.let { DAY_TYPE_COLORS[it] } ?: TextDisabled
 
@@ -580,7 +617,6 @@ internal fun DayCard(day: MealPlanDayDto, scheduleType: String?, costPerDay: Dou
                         }
                     }
                     Spacer(Modifier.height(5.dp))
-                    // Melhoria #9 — kcal per meal shown in chips
                     Row(
                         modifier = Modifier.horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(5.dp),
@@ -609,7 +645,6 @@ internal fun DayCard(day: MealPlanDayDto, scheduleType: String?, costPerDay: Dou
     }
 }
 
-// Melhoria #8 — Weekly calorie bar chart
 @Composable
 internal fun WeeklyCalorieChart(
     days: List<MealPlanDayDto>,

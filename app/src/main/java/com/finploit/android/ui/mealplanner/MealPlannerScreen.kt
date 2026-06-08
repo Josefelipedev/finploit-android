@@ -191,6 +191,8 @@ fun MealPlannerScreen(
                         tips = state.plan?.tips,
                         favoriteMeals = state.favoriteMeals,
                         tdee = state.tdee,
+                        customBudgetText = state.customBudgetText,
+                        onCustomBudgetChange = viewModel::setCustomBudgetText,
                     )
                     MealTab.SHOPPING -> ShoppingTab(
                         items = state.plan?.shoppingList?.items ?: emptyList(),
@@ -239,6 +241,9 @@ fun MealPlannerScreen(
                         onSetDietMode = viewModel::setDietMode,
                         breakfastAtWork = state.breakfastAtWork,
                         onToggleBreakfastAtWork = viewModel::toggleBreakfastAtWork,
+                        dislikedFoods = state.dislikedFoods,
+                        onAddDislikedFood = viewModel::addDislikedFood,
+                        onRemoveDislikedFood = viewModel::removeDislikedFood,
                     )
                     MealTab.HISTORY -> HistoryTab(
                         plans = state.allPlans,
