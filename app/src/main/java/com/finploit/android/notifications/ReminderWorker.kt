@@ -4,10 +4,13 @@ import android.content.Context
 import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import com.finploit.android.data.preferences.UserPreferencesRepository
 import com.finploit.android.data.repository.GoalRepository
 import com.finploit.android.data.repository.RecurringRepository
+import com.finploit.android.ui.theme.currencyConfigByCode
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
+import kotlinx.coroutines.flow.first
 import java.text.NumberFormat
 import java.util.Calendar
 import java.util.Locale
@@ -19,6 +22,7 @@ class ReminderWorker @AssistedInject constructor(
     private val recurringRepository: RecurringRepository,
     private val goalRepository: GoalRepository,
     private val notificationHelper: NotificationHelper,
+    private val preferencesRepository: UserPreferencesRepository,
 ) : CoroutineWorker(context, workerParams) {
 
     override suspend fun doWork(): Result {
@@ -50,6 +54,9 @@ class ReminderWorker @AssistedInject constructor(
     }
 
     private suspend fun checkGoalProgress() {
+        val currencyCode = preferencesRepository.currencyCode.first()
+        val config = currencyConfigByCode(currencyCode)
+
         goalRepository.getGoals()
             .onSuccess { goals ->
                 goals.forEachIndexed { index, goal ->
@@ -61,13 +68,13 @@ class ReminderWorker @AssistedInject constructor(
                             id = 2000 + index,
                             channelId = NotificationHelper.CHANNEL_GOALS,
                             title = "🎯 Meta atingida!",
-                            body = "Parabéns! Atingiste a meta \"${goal.name}\" de €%.2f".format(target),
+                            body = "Parabéns! Atingiste a meta \"${goal.name}\" de ${config.format(target)}",
                         )
                         progress >= 0.9 -> notificationHelper.sendNotification(
                             id = 2000 + index,
                             channelId = NotificationHelper.CHANNEL_GOALS,
                             title = "🎯 Quase lá!",
-                            body = "A meta \"${goal.name}\" está a ${(progress * 100).toInt()}% — faltam €%.2f".format(target - current),
+                            body = "A meta \"${goal.name}\" está a ${(progress * 100).toInt()}% — faltam ${config.format(target - current)}",
                         )
                     }
                 }

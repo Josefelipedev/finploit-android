@@ -5,6 +5,7 @@ import com.finploit.android.data.dto.CreateFinanceRequest
 import com.finploit.android.data.dto.DashboardResponse
 import com.finploit.android.data.dto.FinanceItemDto
 import com.finploit.android.data.dto.FinanceSummaryResponse
+import com.finploit.android.data.dto.UpdateFinanceRequest
 import com.finploit.android.data.local.dao.TransactionCacheDao
 import com.finploit.android.data.local.entity.TransactionCacheEntity
 import kotlinx.coroutines.flow.Flow
@@ -46,9 +47,16 @@ class FinanceRepository @Inject constructor(
         amount: Double,
         description: String?,
         categoryId: Int?,
+        referenceDate: String? = null,
     ): Result<FinanceItemDto> = runCatching {
         api.createTransaction(
-            CreateFinanceRequest(type = type, amount = amount, description = description, categoryId = categoryId)
+            CreateFinanceRequest(
+                type = type,
+                amount = amount,
+                description = description,
+                categoryId = categoryId,
+                referenceDate = referenceDate,
+            )
         )
     }
 
@@ -57,13 +65,10 @@ class FinanceRepository @Inject constructor(
         type: String,
         amount: Double,
         description: String?,
+        referenceDate: String? = null,
+        categoryId: Int? = null,
     ): Result<FinanceItemDto> = runCatching {
-        val body = buildMap<String, Any> {
-            put("type", type)
-            put("amount", amount)
-            description?.let { put("description", it) }
-        }
-        api.updateTransaction(id, body)
+        api.updateTransaction(id, UpdateFinanceRequest(type, amount, description, referenceDate, categoryId))
     }
 
     suspend fun deleteTransaction(id: Int): Result<Unit> = runCatching {

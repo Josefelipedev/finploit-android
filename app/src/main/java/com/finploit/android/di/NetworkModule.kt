@@ -5,6 +5,7 @@ import com.finploit.android.data.api.AnalysisApi
 import com.finploit.android.data.api.AuthApi
 import com.finploit.android.data.api.AuthInterceptor
 import com.finploit.android.data.api.UnauthorizedInterceptor
+import com.finploit.android.data.api.FinanceCategoryApi
 import com.finploit.android.data.api.FinanceApi
 import com.finploit.android.data.api.GrocerySearchApi
 import com.finploit.android.data.api.MealPlannerApi
@@ -98,6 +99,11 @@ object NetworkModule {
     @Singleton
     fun provideFinanceApi(retrofit: Retrofit): FinanceApi =
         retrofit.create(FinanceApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideFinanceCategoryApi(retrofit: Retrofit): FinanceCategoryApi =
+        retrofit.create(FinanceCategoryApi::class.java)
 
     @Provides
     @Singleton

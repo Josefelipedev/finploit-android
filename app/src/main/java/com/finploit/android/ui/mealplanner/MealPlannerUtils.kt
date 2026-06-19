@@ -19,6 +19,7 @@ import com.finploit.android.ui.theme.GreenPrimary
 import com.google.gson.Gson
 import com.google.gson.JsonSyntaxException
 
+// Single shared Gson instance for the whole mealplanner package
 internal val gson = Gson()
 
 internal fun parseMeal(json: String?): MealDetailDto? = try {
@@ -34,6 +35,29 @@ internal fun parseSnack(json: String?): SnackDetailDto? {
         SnackDetailDto(name = json.trim())
     }
 }
+
+// Converts Java DayOfWeek (1=Mon … 7=Sun) to app convention (0=Sun … 6=Sat)
+internal fun todayDowFromJava(): Int {
+    val v = java.time.LocalDate.now().dayOfWeek.value
+    return if (v == 7) 0 else v
+}
+
+// Mifflin-St Jeor sex-neutral approximation (avg male/female, ~30y). Returns kcal/day.
+internal fun computeTdee(heightCm: Float, weightKg: Float, activityLevel: String): Int {
+    val bmr = (10f * weightKg + 6.25f * heightCm - 228f).toInt()
+    val multiplier = when (activityLevel) {
+        "sedentary" -> 1.2f
+        "light" -> 1.375f
+        "moderate" -> 1.55f
+        "active" -> 1.725f
+        "very_active" -> 1.9f
+        else -> 1.55f
+    }
+    return (bmr * multiplier).toInt()
+}
+
+// Supermarket store IDs used across shopping tab and price enrichment
+internal val SUPERMARKET_STORE_IDS = listOf("continente", "auchan", "pingodoce")
 
 internal val SUPERMARKET_SECTION_ORDER = listOf(
     "Frutas e Legumes", "Fruta", "Legumes", "Verduras", "Vegetais",

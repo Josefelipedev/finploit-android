@@ -126,7 +126,6 @@ internal fun HistoryTab(
                     }
                 }
             }
-            // Melhoria #4 — Cost comparison banner (last 2 plans)
             if (plans.size >= 2) {
                 item {
                     val sorted = plans.sortedByDescending { it.weekStart }
@@ -224,7 +223,6 @@ internal fun HistoryPlanCard(
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp,
                     )
-                    // Melhoria #10 — Adherence %
                     val mealTypes = listOf("breakfast", "lunch", "dinner")
                     val totalMeals = plan.days.size * 3
                     val eatenCount = plan.days.sumOf { day ->

@@ -33,7 +33,7 @@ class GrocerySearchRepository @Inject constructor(
         return runCatching {
             api.search(query, supermarkets?.joinToString(","), postalCode, maxResults)
         }.also { result ->
-            result.onSuccess { cache.put(key, it) }
+            result.onSuccess { if (it.products.isNotEmpty()) cache.put(key, it) }
         }
     }
 

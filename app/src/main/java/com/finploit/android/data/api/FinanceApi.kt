@@ -5,11 +5,12 @@ import com.finploit.android.data.dto.DashboardResponse
 import com.finploit.android.data.dto.FinanceItemDto
 import com.finploit.android.data.dto.FinanceListResponse
 import com.finploit.android.data.dto.FinanceSummaryResponse
+import com.finploit.android.data.dto.UpdateFinanceRequest
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
-import retrofit2.http.PATCH
+import retrofit2.http.PUT
 import retrofit2.http.POST
 import retrofit2.http.Path
 import retrofit2.http.Query
@@ -38,10 +39,10 @@ interface FinanceApi {
     @POST("finance")
     suspend fun createTransaction(@Body request: CreateFinanceRequest): FinanceItemDto
 
-    @PATCH("finance/{id}")
+    @PUT("finance/{id}")
     suspend fun updateTransaction(
         @Path("id") id: Int,
-        @Body body: Map<String, @JvmSuppressWildcards Any>,
+        @Body body: UpdateFinanceRequest,
     ): FinanceItemDto
 
     @DELETE("finance/{id}")

@@ -107,8 +107,38 @@ internal fun ShoppingTab(
     val context = LocalContext.current
     val currencyConfig = LocalCurrencyConfig.current
 
-    // Melhoria #6 — Search bar state
     var searchQuery by remember { mutableStateOf("") }
+    var priceDialogItem by remember { mutableStateOf<MealShoppingItemDto?>(null) }
+    var priceDialogInput by remember { mutableStateOf("") }
+
+    priceDialogItem?.let { item ->
+        AlertDialog(
+            onDismissRequest = { priceDialogItem = null },
+            containerColor = CardBackground,
+            title = { Text("Preço real pago", color = TextPrimary, fontWeight = FontWeight.Bold) },
+            text = {
+                OutlinedTextField(
+                    value = priceDialogInput,
+                    onValueChange = { priceDialogInput = it.filter { c -> c.isDigit() || c == '.' } },
+                    label = { Text("Valor pago (${currencyConfig.symbol})", fontSize = 12.sp) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = GreenPrimary, focusedLabelColor = GreenPrimary, cursorColor = GreenPrimary),
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = { onUpdateActualPrice(item.id, priceDialogInput.toDoubleOrNull()); priceDialogItem = null },
+                    colors = ButtonDefaults.buttonColors(containerColor = GreenPrimary),
+                ) { Text("Guardar", color = BackgroundDark, fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = {
+                TextButton(onClick = { onUpdateActualPrice(item.id, null); priceDialogInput = ""; priceDialogItem = null }) {
+                    Text("Limpar", color = TextDisabled)
+                }
+            },
+        )
+    }
 
     // Pantry suggestion dialog
     pantryAddSuggestion?.let { suggestion ->
@@ -214,7 +244,6 @@ internal fun ShoppingTab(
             ShoppingFilter.PENDING -> all.filter { !it.purchased }
             ShoppingFilter.PURCHASED -> all.filter { it.purchased }
         }
-        // Melhoria #6 — apply search query filter
         if (searchQuery.isBlank()) byFilter
         else byFilter.filter { it.name.contains(searchQuery.trim(), ignoreCase = true) }
     }
@@ -230,19 +259,19 @@ internal fun ShoppingTab(
     }
     val pendingCount = total - purchased
 
-    val enrichedTotal = enrichedItems.values.sumOf { it.bestPrice ?: it.estimatedPrice }
-    val aiTotal = enrichedItems.values.sumOf { it.estimatedPrice }
-    val savings = aiTotal - enrichedTotal
     val hasEnriched = enrichedItems.isNotEmpty()
-
-    val bestStore = if (hasEnriched) {
-        enrichedItems.values
+    val enrichedTotal = remember(enrichedItems) { enrichedItems.values.sumOf { it.bestPrice ?: it.estimatedPrice } }
+    val aiTotal = remember(enrichedItems) { enrichedItems.values.sumOf { it.estimatedPrice } }
+    val savings = aiTotal - enrichedTotal
+    val bestStore = remember(enrichedItems) {
+        if (!hasEnriched) null
+        else enrichedItems.values
             .mapNotNull { it.bestSource }
             .groupingBy { it }
             .eachCount()
             .maxByOrNull { it.value }
             ?.key
-    } else null
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
@@ -278,7 +307,6 @@ internal fun ShoppingTab(
                 }
             }
         }
-        // Melhoria #6 — Search bar
         item {
             OutlinedTextField(
                 value = searchQuery,
@@ -445,7 +473,6 @@ internal fun ShoppingTab(
                 }
             }
         }
-        // Melhoria #5 — Supermarket filter chips (only when enriched prices are available)
         if (hasEnriched) {
             item {
                 val storeLabels = listOf(
@@ -627,7 +654,10 @@ internal fun ShoppingTab(
                         item = item,
                         enriched = enrichedItems[item.name.trim().lowercase()],
                         onToggle = { onToggle(item.id) },
-                        onUpdateActualPrice = { price -> onUpdateActualPrice(item.id, price) },
+                        onPriceClick = {
+                            priceDialogInput = item.actualPrice?.let { "%.2f".format(it) } ?: ""
+                            priceDialogItem = item
+                        },
                     )
                 }
             }
@@ -641,38 +671,10 @@ internal fun ShoppingItemRow(
     item: MealShoppingItemDto,
     enriched: EnrichedShoppingItemDto? = null,
     onToggle: () -> Unit,
-    onUpdateActualPrice: (Double?) -> Unit = {},
+    onPriceClick: () -> Unit = {},
 ) {
     val qty = if (item.quantity == item.quantity.toLong().toDouble()) item.quantity.toLong().toString() else "%.1f".format(item.quantity)
     val currencyConfig = LocalCurrencyConfig.current
-    var showPriceDialog by remember { mutableStateOf(false) }
-    var actualPriceInput by remember(item.actualPrice) { mutableStateOf(item.actualPrice?.let { "%.2f".format(it) } ?: "") }
-
-    if (showPriceDialog) {
-        AlertDialog(
-            onDismissRequest = { showPriceDialog = false },
-            containerColor = CardBackground,
-            title = { Text("Preço real pago", color = TextPrimary, fontWeight = FontWeight.Bold) },
-            text = {
-                OutlinedTextField(
-                    value = actualPriceInput,
-                    onValueChange = { actualPriceInput = it.filter { c -> c.isDigit() || c == '.' } },
-                    label = { Text("Valor pago (${currencyConfig.symbol})", fontSize = 12.sp) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = GreenPrimary, focusedLabelColor = GreenPrimary, cursorColor = GreenPrimary),
-                )
-            },
-            confirmButton = {
-                Button(onClick = { onUpdateActualPrice(actualPriceInput.toDoubleOrNull()); showPriceDialog = false }, colors = ButtonDefaults.buttonColors(containerColor = GreenPrimary)) {
-                    Text("Guardar", color = BackgroundDark, fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { onUpdateActualPrice(null); actualPriceInput = ""; showPriceDialog = false }) { Text("Limpar", color = TextDisabled) }
-            },
-        )
-    }
 
     Card(
         modifier = Modifier.fillMaxWidth().clickable { onToggle() },
@@ -774,7 +776,7 @@ internal fun ShoppingItemRow(
                             color = GreenPrimary,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.clickable { showPriceDialog = true },
+                            modifier = Modifier.clickable { onPriceClick() },
                         )
                     } else {
                         Text(
@@ -783,7 +785,7 @@ internal fun ShoppingItemRow(
                             fontSize = 11.sp,
                             modifier = Modifier
                                 .clip(RoundedCornerShape(4.dp))
-                                .clickable { showPriceDialog = true }
+                                .clickable { onPriceClick() }
                                 .padding(horizontal = 4.dp, vertical = 2.dp),
                         )
                     }

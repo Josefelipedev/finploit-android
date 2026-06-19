@@ -19,7 +19,7 @@ class GrocerySearchCache @Inject constructor(
     private val dataStore: DataStore<Preferences>,
 ) {
     private val gson = Gson()
-    private val KEY = stringPreferencesKey("grocery_search_cache_v1")
+    private val KEY = stringPreferencesKey("grocery_search_cache_v2")
 
     private data class CacheEntry(val timestamp: Long, val data: GrocerySearchResponseDto)
 

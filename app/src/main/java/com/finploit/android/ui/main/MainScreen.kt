@@ -38,6 +38,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import android.Manifest
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import com.finploit.android.data.api.EnrichItem
@@ -124,6 +125,32 @@ fun MainScreen(onLogout: () -> Unit) {
     val recurringDueCount by mainViewModel.recurringDueCount.collectAsState()
     val currencyCode by mainViewModel.currencyCode.collectAsState()
     val currencyConfig = currencyConfigByCode(currencyCode)
+
+    // BackHandler: botão voltar do sistema fecha overlays em vez de sair do app
+    val isShowingOverlay = showProfile || showNotifications || showPantry || showBudgetLimits ||
+        showMonthlyReport || showCalendar || showGlobalSearch || showReceiptScan ||
+        showGrocerySearch || showAddTransaction || editingTransaction != null ||
+        showAddGoal || showAddShoppingList || showAddRecurring || selectedShoppingList != null
+
+    BackHandler(enabled = isShowingOverlay) {
+        when {
+            showProfile -> showProfile = false
+            showNotifications -> showNotifications = false
+            showPantry -> showPantry = false
+            showBudgetLimits -> showBudgetLimits = false
+            showMonthlyReport -> showMonthlyReport = false
+            showCalendar -> showCalendar = false
+            showGlobalSearch -> showGlobalSearch = false
+            showReceiptScan -> showReceiptScan = false
+            showGrocerySearch -> showGrocerySearch = false
+            showAddTransaction -> showAddTransaction = false
+            editingTransaction != null -> editingTransaction = null
+            showAddGoal -> showAddGoal = false
+            showAddShoppingList -> showAddShoppingList = false
+            showAddRecurring -> showAddRecurring = false
+            selectedShoppingList != null -> selectedShoppingList = null
+        }
+    }
 
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()

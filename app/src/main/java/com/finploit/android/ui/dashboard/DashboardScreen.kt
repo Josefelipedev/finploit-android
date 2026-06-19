@@ -66,6 +66,7 @@ import com.finploit.android.ui.theme.GradientStart
 import com.finploit.android.ui.theme.GreenPrimary
 import com.finploit.android.ui.theme.IncomeGreen
 import com.finploit.android.ui.theme.SurfaceDark
+import com.finploit.android.ui.theme.CurrencyConfig
 import com.finploit.android.ui.theme.TextDisabled
 import com.finploit.android.ui.theme.LocalCurrencyConfig
 import com.finploit.android.ui.theme.TextPrimary
@@ -86,8 +87,6 @@ fun DashboardScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var showOverflowMenu by remember { mutableStateOf(false) }
-
-    LaunchedEffect(Unit) { viewModel.loadDashboard() }
 
     Column(
         modifier = Modifier
@@ -239,6 +238,7 @@ fun DashboardScreen(
 
 @Composable
 private fun BalanceCard(balance: Double, income: Double, expense: Double) {
+    val currencyConfig = LocalCurrencyConfig.current
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
@@ -259,7 +259,7 @@ private fun BalanceCard(balance: Double, income: Double, expense: Double) {
                 Text("Saldo Total", color = TextSecondary, fontSize = 14.sp)
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    text = formatCurrency(balance),
+                    text = formatCurrency(balance, currencyConfig),
                     fontSize = 36.sp,
                     fontWeight = FontWeight.ExtraBold,
                     color = if (balance >= 0) IncomeGreen else ExpenseRed,
@@ -287,6 +287,7 @@ private fun BalanceCard(balance: Double, income: Double, expense: Double) {
 private fun StatItem(label: String, value: Double, isIncome: Boolean) {
     val color = if (isIncome) IncomeGreen else ExpenseRed
     val icon = if (isIncome) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward
+    val currencyConfig = LocalCurrencyConfig.current
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(
             modifier = Modifier
@@ -300,13 +301,14 @@ private fun StatItem(label: String, value: Double, isIncome: Boolean) {
         Spacer(Modifier.width(10.dp))
         Column {
             Text(label, color = TextSecondary, fontSize = 12.sp)
-            Text(formatCurrency(value), color = color, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+            Text(formatCurrency(value, currencyConfig), color = color, fontWeight = FontWeight.Bold, fontSize = 15.sp)
         }
     }
 }
 
 @Composable
 private fun WeekStatsRow(weekIncome: Double, weekExpense: Double) {
+    val currencyConfig = LocalCurrencyConfig.current
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
@@ -322,12 +324,12 @@ private fun WeekStatsRow(weekIncome: Double, weekExpense: Double) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.ArrowUpward, contentDescription = null, tint = IncomeGreen, modifier = Modifier.size(14.dp))
                     Spacer(Modifier.width(4.dp))
-                    Text(formatCurrency(weekIncome), color = IncomeGreen, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Text(formatCurrency(weekIncome, currencyConfig), color = IncomeGreen, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.ArrowDownward, contentDescription = null, tint = ExpenseRed, modifier = Modifier.size(14.dp))
                     Spacer(Modifier.width(4.dp))
-                    Text(formatCurrency(weekExpense), color = ExpenseRed, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Text(formatCurrency(weekExpense, currencyConfig), color = ExpenseRed, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                 }
             }
         }
@@ -339,6 +341,7 @@ private fun TransactionItem(tx: TransactionDto) {
     val isIncome = tx.tag == "income"
     val color = if (isIncome) IncomeGreen else ExpenseRed
     val icon = if (isIncome) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward
+    val currencyConfig = LocalCurrencyConfig.current
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -375,7 +378,7 @@ private fun TransactionItem(tx: TransactionDto) {
                 Text(subtitle, color = TextDisabled, fontSize = 12.sp)
             }
             Text(
-                text = formatCurrency(tx.amount),
+                text = formatCurrency(tx.amount, currencyConfig),
                 color = color,
                 fontWeight = FontWeight.Bold,
                 fontSize = 15.sp,
@@ -384,9 +387,7 @@ private fun TransactionItem(tx: TransactionDto) {
     }
 }
 
-@Composable
-private fun formatCurrency(value: Double): String =
-    LocalCurrencyConfig.current.format(value)
+private fun formatCurrency(value: Double, config: CurrencyConfig): String = config.format(value)
 
 @Composable
 private fun DashboardMenuItem(

@@ -43,11 +43,15 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberSwipeToDismissBoxState
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -73,6 +77,7 @@ fun TransactionsScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val listState = rememberLazyListState()
+    var pendingDeleteTx by remember { mutableStateOf<FinanceItemDto?>(null) }
 
     val displayed = remember(uiState.transactions, uiState.searchQuery, uiState.typeFilter) {
         uiState.transactions.filter { tx ->
@@ -97,6 +102,21 @@ fun TransactionsScreen(
         uiState.snackbarMessage?.let {
             snackbarHostState.showSnackbar(it)
             viewModel.clearSnackbar()
+        }
+    }
+
+    // Undo para swipe delete: executa deleção só se o usuário não cancelar
+    LaunchedEffect(pendingDeleteTx) {
+        pendingDeleteTx?.let { tx ->
+            val result = snackbarHostState.showSnackbar(
+                message = "Transação removida",
+                actionLabel = "Desfazer",
+                duration = SnackbarDuration.Short,
+            )
+            if (result != SnackbarResult.ActionPerformed) {
+                viewModel.deleteTransaction(tx.id)
+            }
+            pendingDeleteTx = null
         }
     }
 
@@ -171,7 +191,7 @@ fun TransactionsScreen(
                     SwipeToDeleteTransaction(
                         tx = tx,
                         isDeleting = tx.id in uiState.deletingIds,
-                        onDelete = { viewModel.deleteTransaction(tx.id) },
+                        onDelete = { pendingDeleteTx = tx },
                         onEdit = { onEditTransaction(tx) },
                     )
                 }

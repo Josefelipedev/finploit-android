@@ -1,5 +1,21 @@
 package com.finploit.android.data.dto
 
+data class FinanceCategoryDto(
+    val id: Int,
+    val name: String,
+    val color: String? = null,
+    val iconName: String? = null,
+    val isActive: Boolean = true,
+)
+
+data class UpdateFinanceRequest(
+    val type: String,
+    val amount: Double,
+    val description: String? = null,
+    val referenceDate: String? = null,
+    val categoryId: Int? = null,
+)
+
 data class CreateFinanceRequest(
     val type: String,
     val amount: Double,

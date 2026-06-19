@@ -1,6 +1,7 @@
 package com.finploit.android.ui.mealplanner
 
 import android.content.Intent
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -90,17 +91,18 @@ internal fun MealDayScreen(
     onToggleFavorite: (String) -> Unit = {},
     onToggleLocked: (String) -> Unit = {},
     onSetNote: (String, String) -> Unit = { _, _ -> },
-    // Melhoria #4: preferences param added
     onSubstituteMeal: (Int, String, String?) -> Unit = { _, _, _ -> },
     onBack: () -> Unit,
     onNavigateDay: (MealPlanDayDto) -> Unit = {},
 ) {
-    val breakfast = parseMeal(day.breakfast)
-    val lunch = parseMeal(day.lunch)
-    val dinner = parseMeal(day.dinner)
+    val breakfast = remember(day.breakfast) { parseMeal(day.breakfast) }
+    val lunch = remember(day.lunch) { parseMeal(day.lunch) }
+    val dinner = remember(day.dinner) { parseMeal(day.dinner) }
     val dayColor = DAY_COLORS.getOrElse(day.dayOfWeek) { GreenPrimary }
     val typeColor = scheduleType?.let { DAY_TYPE_COLORS[it] } ?: TextDisabled
     val context = LocalContext.current
+
+    BackHandler(onBack = onBack)
 
     // Caloric progress
     val bfKey = "${planId}_${day.dayOfWeek}_breakfast"
@@ -267,7 +269,6 @@ internal fun MealDayScreen(
             } else if (dinnerAtWork) {
                 item { OutsideRow("🌙 Jantar") }
             }
-            // Melhoria #5 — Snack feedback row
             parseSnack(day.snacks)?.let { snack ->
                 item { SnackCard(snack = snack, accentColor = Color(0xFFFFD740)) }
                 item {
@@ -318,29 +319,27 @@ internal fun MealFeedbackRow(
     val isLocked = mealKey in lockedMeals
     val note = mealNotes[mealKey]
 
-    // Melhoria #4 — Substitution preferences dialog
     var showSubDialog by remember { mutableStateOf(false) }
-    var subPrefs by remember { mutableStateOf("") }
+    var selectedChips by remember { mutableStateOf(emptySet<String>()) }
+    var freeTextPref by remember { mutableStateOf("") }
     val quickSubPrefs = listOf("Mais barato", "Vegan", "Sem glúten", "Sem lacticínios", "Rápido")
+
+    fun resetSubDialog() { showSubDialog = false; selectedChips = emptySet(); freeTextPref = "" }
 
     if (showSubDialog) {
         AlertDialog(
-            onDismissRequest = { showSubDialog = false; subPrefs = "" },
+            onDismissRequest = { resetSubDialog() },
             containerColor = CardBackground,
             title = { Text("Preferências para a troca", color = TextPrimary, fontWeight = FontWeight.Bold) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("A IA vai considerar estas preferências ao sugerir uma nova refeição.", color = TextSecondary, fontSize = 12.sp)
-                    // Quick chips
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         quickSubPrefs.take(3).forEach { pref ->
-                            val sel = subPrefs.contains(pref)
+                            val sel = pref in selectedChips
                             FilterChip(
                                 selected = sel,
-                                onClick = {
-                                    subPrefs = if (sel) subPrefs.replace(pref, "").trim().trimStart(',').trimEnd(',')
-                                    else if (subPrefs.isBlank()) pref else "$subPrefs, $pref"
-                                },
+                                onClick = { selectedChips = if (sel) selectedChips - pref else selectedChips + pref },
                                 label = { Text(pref, fontSize = 11.sp) },
                                 colors = FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = GreenPrimary.copy(alpha = 0.18f),
@@ -352,13 +351,10 @@ internal fun MealFeedbackRow(
                     }
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         quickSubPrefs.drop(3).forEach { pref ->
-                            val sel = subPrefs.contains(pref)
+                            val sel = pref in selectedChips
                             FilterChip(
                                 selected = sel,
-                                onClick = {
-                                    subPrefs = if (sel) subPrefs.replace(pref, "").trim().trimStart(',').trimEnd(',')
-                                    else if (subPrefs.isBlank()) pref else "$subPrefs, $pref"
-                                },
+                                onClick = { selectedChips = if (sel) selectedChips - pref else selectedChips + pref },
                                 label = { Text(pref, fontSize = 11.sp) },
                                 colors = FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = GreenPrimary.copy(alpha = 0.18f),
@@ -369,8 +365,8 @@ internal fun MealFeedbackRow(
                         }
                     }
                     OutlinedTextField(
-                        value = subPrefs,
-                        onValueChange = { subPrefs = it },
+                        value = freeTextPref,
+                        onValueChange = { freeTextPref = it },
                         label = { Text("Outras preferências (opcional)", fontSize = 12.sp) },
                         placeholder = { Text("Ex: sem frutos do mar", fontSize = 12.sp, color = TextDisabled) },
                         singleLine = true,
@@ -386,22 +382,22 @@ internal fun MealFeedbackRow(
             confirmButton = {
                 Button(
                     onClick = {
-                        onSubstitute(subPrefs.trim().ifBlank { null })
-                        showSubDialog = false
-                        subPrefs = ""
+                        val combined = buildList {
+                            addAll(selectedChips)
+                            freeTextPref.trim().takeIf { it.isNotBlank() }?.let { add(it) }
+                        }.joinToString(", ")
+                        onSubstitute(combined.ifBlank { null })
+                        resetSubDialog()
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = GreenPrimary),
                 ) { Text("Trocar", color = BackgroundDark, fontWeight = FontWeight.Bold) }
             },
             dismissButton = {
-                TextButton(onClick = { showSubDialog = false; subPrefs = "" }) {
-                    Text("Cancelar", color = TextDisabled)
-                }
+                TextButton(onClick = { resetSubDialog() }) { Text("Cancelar", color = TextDisabled) }
             },
         )
     }
 
-    // Melhoria #10 — Note dialog
     var showNoteDialog by remember { mutableStateOf(false) }
     var noteInput by remember(note) { mutableStateOf(note ?: "") }
 
@@ -665,8 +661,7 @@ internal fun SectionCard(label: String, meal: MealDetailDto, accentColor: Color)
                 Text(desc, color = TextDisabled, fontSize = 12.sp, fontStyle = FontStyle.Italic)
             }
             Spacer(Modifier.height(10.dp))
-            // Melhoria #1 — Fiber chip added alongside protein/carbs/fat
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 MacroChip("🔥 ${meal.calories} kcal", IncomeGreen)
                 if (meal.protein != null) MacroChip("P ${meal.protein.toInt()}g", Color(0xFF64B5F6))
                 if (meal.carbs != null) MacroChip("C ${meal.carbs.toInt()}g", Color(0xFFFFD740))

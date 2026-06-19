@@ -15,8 +15,8 @@ android {
         applicationId = "com.finploit.android"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
-        versionName = "1.2.0"
+        versionCode = 4
+        versionName = "1.2.1"
 
         buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:5009/\"")
         buildConfigField("String", "GOOGLE_CLIENT_ID", "\"${System.getenv("GOOGLE_CLIENT_ID") ?: ""}\"")
@@ -25,9 +25,9 @@ android {
     signingConfigs {
         create("release") {
             storeFile = file("${rootProject.projectDir}/finploit-release.jks")
-            storePassword = System.getenv("KEYSTORE_PASS") ?: "finploit2026"
+            storePassword = System.getenv("KEYSTORE_PASS") ?: ""
             keyAlias = System.getenv("KEY_ALIAS") ?: "finploit"
-            keyPassword = System.getenv("KEY_PASS") ?: "finploit2026"
+            keyPassword = System.getenv("KEY_PASS") ?: ""
         }
     }
 

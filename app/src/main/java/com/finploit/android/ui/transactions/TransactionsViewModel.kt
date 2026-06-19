@@ -2,7 +2,9 @@ package com.finploit.android.ui.transactions
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.finploit.android.data.dto.FinanceCategoryDto
 import com.finploit.android.data.dto.FinanceItemDto
+import com.finploit.android.data.repository.FinanceCategoryRepository
 import com.finploit.android.data.repository.FinanceRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,17 +30,22 @@ data class TransactionsUiState(
     val isUpdating: Boolean = false,
     val updateError: String? = null,
     val snackbarMessage: String? = null,
+    val categories: List<FinanceCategoryDto> = emptyList(),
 )
 
 @HiltViewModel
 class TransactionsViewModel @Inject constructor(
     private val financeRepository: FinanceRepository,
+    private val categoryRepository: FinanceCategoryRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(TransactionsUiState(isLoading = true))
     val uiState: StateFlow<TransactionsUiState> = _uiState.asStateFlow()
 
-    init { loadTransactions() }
+    init {
+        loadTransactions()
+        loadCategories()
+    }
 
     fun loadTransactions() {
         viewModelScope.launch {
@@ -55,6 +62,13 @@ class TransactionsViewModel @Inject constructor(
                 .onFailure { e ->
                     _uiState.value = _uiState.value.copy(isLoading = false, error = e.message)
                 }
+        }
+    }
+
+    fun loadCategories() {
+        viewModelScope.launch {
+            categoryRepository.getCategories()
+                .onSuccess { list -> _uiState.value = _uiState.value.copy(categories = list) }
         }
     }
 
@@ -90,10 +104,16 @@ class TransactionsViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(editingTransaction = null, updateError = null)
     }
 
-    fun createTransaction(type: String, amount: Double, description: String?, categoryId: Int?) {
+    fun createTransaction(
+        type: String,
+        amount: Double,
+        description: String?,
+        categoryId: Int?,
+        referenceDate: String? = null,
+    ) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isCreating = true, createError = null, createSuccess = false)
-            financeRepository.createTransaction(type, amount, description, categoryId)
+            financeRepository.createTransaction(type, amount, description, categoryId, referenceDate)
                 .onSuccess {
                     _uiState.value = _uiState.value.copy(isCreating = false, createSuccess = true)
                     loadTransactions()
@@ -104,10 +124,17 @@ class TransactionsViewModel @Inject constructor(
         }
     }
 
-    fun updateTransaction(id: Int, type: String, amount: Double, description: String?) {
+    fun updateTransaction(
+        id: Int,
+        type: String,
+        amount: Double,
+        description: String?,
+        referenceDate: String? = null,
+        categoryId: Int? = null,
+    ) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isUpdating = true, updateError = null)
-            financeRepository.updateTransaction(id, type, amount, description)
+            financeRepository.updateTransaction(id, type, amount, description, referenceDate, categoryId)
                 .onSuccess { updated ->
                     _uiState.value = _uiState.value.copy(
                         isUpdating = false,
@@ -130,7 +157,6 @@ class TransactionsViewModel @Inject constructor(
                     _uiState.value = _uiState.value.copy(
                         deletingIds = _uiState.value.deletingIds - id,
                         transactions = _uiState.value.transactions.filter { it.id != id },
-                        snackbarMessage = "Transação excluída",
                     )
                 }
                 .onFailure {
