@@ -19,15 +19,23 @@ android {
         versionName = "1.3.0"
 
         buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:5009/\"")
-        buildConfigField("String", "GOOGLE_CLIENT_ID", "\"${System.getenv("GOOGLE_CLIENT_ID") ?: ""}\"")
+        buildConfigField(
+            "String",
+            "GOOGLE_CLIENT_ID",
+            "\"${System.getenv("GOOGLE_CLIENT_ID") ?: findProperty("FINPLOIT_GOOGLE_CLIENT_ID") ?: ""}\"",
+        )
     }
 
     signingConfigs {
         create("release") {
+            // Credenciais via env var ou ~/.gradle/gradle.properties (FINPLOIT_*)
             storeFile = file("${rootProject.projectDir}/finploit-release.jks")
-            storePassword = System.getenv("KEYSTORE_PASS") ?: ""
-            keyAlias = System.getenv("KEY_ALIAS") ?: "finploit"
-            keyPassword = System.getenv("KEY_PASS") ?: ""
+            storePassword = System.getenv("KEYSTORE_PASS")
+                ?: (findProperty("FINPLOIT_KEYSTORE_PASS") as String? ?: "")
+            keyAlias = System.getenv("KEY_ALIAS")
+                ?: (findProperty("FINPLOIT_KEY_ALIAS") as String? ?: "finploit")
+            keyPassword = System.getenv("KEY_PASS")
+                ?: (findProperty("FINPLOIT_KEY_PASS") as String? ?: "")
         }
     }
 
