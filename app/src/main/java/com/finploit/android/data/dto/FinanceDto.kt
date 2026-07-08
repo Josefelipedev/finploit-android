@@ -55,6 +55,16 @@ data class FinanceSummaryResponse(
     val totalGanhos: Double,
     val totalDespesas: Double,
     val saldo: Double,
+    // Multi-moeda: totais acima vêm convertidos para a moeda de exibição do usuário
+    val displayCurrency: String? = null,
+    val rateDate: String? = null,
+    val byCurrency: List<CurrencyBreakdownDto>? = null,
+)
+
+data class CurrencyBreakdownDto(
+    val currency: String,
+    val ganhos: Double,
+    val despesas: Double,
 )
 
 data class FinanceListResponse(
