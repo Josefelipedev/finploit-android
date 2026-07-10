@@ -3,7 +3,9 @@ package com.finploit.android.ui.recurring
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.finploit.android.data.dto.CreateRecurringRequest
+import com.finploit.android.data.dto.FinanceCategoryDto
 import com.finploit.android.data.dto.RecurringTransactionDto
+import com.finploit.android.data.repository.FinanceCategoryRepository
 import com.finploit.android.data.repository.RecurringRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -15,6 +17,7 @@ import javax.inject.Inject
 data class RecurringUiState(
     val isLoading: Boolean = false,
     val transactions: List<RecurringTransactionDto> = emptyList(),
+    val categories: List<FinanceCategoryDto> = emptyList(),
     val error: String? = null,
     val isSaving: Boolean = false,
     val saveSuccess: Boolean = false,
@@ -25,19 +28,30 @@ data class RecurringUiState(
 @HiltViewModel
 class RecurringViewModel @Inject constructor(
     private val repository: RecurringRepository,
+    private val categoryRepository: FinanceCategoryRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(RecurringUiState(isLoading = true))
     val uiState: StateFlow<RecurringUiState> = _uiState.asStateFlow()
 
-    init { loadAll() }
+    init {
+        loadAll()
+        loadCategories()
+    }
 
     fun loadAll() {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
             repository.getAll()
-                .onSuccess { _uiState.value = RecurringUiState(transactions = it) }
-                .onFailure { _uiState.value = RecurringUiState(error = it.message) }
+                .onSuccess { _uiState.value = _uiState.value.copy(isLoading = false, transactions = it, error = null) }
+                .onFailure { _uiState.value = _uiState.value.copy(isLoading = false, error = it.message) }
+        }
+    }
+
+    fun loadCategories() {
+        viewModelScope.launch {
+            categoryRepository.getCategories()
+                .onSuccess { list -> _uiState.value = _uiState.value.copy(categories = list) }
         }
     }
 
@@ -47,7 +61,7 @@ class RecurringViewModel @Inject constructor(
         type: String,
         frequency: String,
         dueDay: Int,
-        categoria: String,
+        categoryId: Int,
         endDate: String,
         occurrences: Int,
     ) {
@@ -69,7 +83,7 @@ class RecurringViewModel @Inject constructor(
                     dueDay = dueDay,
                     weekDay = 0,
                     notification = true,
-                    categoria = categoria,
+                    categoryId = categoryId,
                     endDate = endDate,
                     occurrences = occurrences,
                 )

@@ -12,6 +12,7 @@ data class RecurringTransactionDto(
     val endDate: String?,
     val occurrences: Int?,
     val userId: Int?,
+    val categoryId: Int? = null,
 )
 
 data class CreateRecurringRequest(
@@ -22,7 +23,7 @@ data class CreateRecurringRequest(
     val dueDay: Int,
     val weekDay: Int,
     val notification: Boolean,
-    val categoria: String,
+    val categoryId: Int,
     val endDate: String,
     val occurrences: Int,
 )

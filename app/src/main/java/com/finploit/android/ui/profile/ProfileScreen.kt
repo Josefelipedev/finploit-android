@@ -40,6 +40,7 @@ import androidx.compose.runtime.setValue
 import androidx.activity.compose.BackHandler
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.finploit.android.ui.couple.CoupleScreen
+import com.finploit.android.ui.fiscal.FiscalScreen
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -71,10 +72,17 @@ fun ProfileScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val selectedCurrencyCode by viewModel.currencyCode.collectAsStateWithLifecycle()
     var showCouple by remember { mutableStateOf(false) }
+    var showFiscal by remember { mutableStateOf(false) }
 
     if (showCouple) {
         BackHandler { showCouple = false }
         CoupleScreen(viewModel = hiltViewModel(), onBack = { showCouple = false })
+        return
+    }
+
+    if (showFiscal) {
+        BackHandler { showFiscal = false }
+        FiscalScreen(viewModel = hiltViewModel(), onBack = { showFiscal = false })
         return
     }
 
@@ -181,6 +189,36 @@ fun ProfileScreen(
                                     Text("Finanças do Casal", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                                     Text(
                                         "Convide seu par ou gerencie o vínculo",
+                                        color = TextDisabled,
+                                        fontSize = 12.sp,
+                                    )
+                                }
+                                Text("›", color = TextSecondary, fontSize = 22.sp)
+                            }
+                        }
+                        Spacer(Modifier.height(16.dp))
+                    }
+
+                    // Obrigações fiscais (Portugal)
+                    item {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(16.dp))
+                                .clickable { showFiscal = true },
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = CardBackground),
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(20.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text("🧾", fontSize = 22.sp)
+                                Spacer(Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Fiscal", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                    Text(
+                                        "Prazos de IVA, IRS e Segurança Social",
                                         color = TextDisabled,
                                         fontSize = 12.sp,
                                     )

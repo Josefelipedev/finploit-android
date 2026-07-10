@@ -1,0 +1,372 @@
+package com.finploit.android.ui.fiscal
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.finploit.android.data.dto.FiscalDeadlineDto
+import com.finploit.android.data.dto.FiscalObligationDto
+import com.finploit.android.ui.theme.BackgroundDark
+import com.finploit.android.ui.theme.CardBackground
+import com.finploit.android.ui.theme.CardElevated
+import com.finploit.android.ui.theme.GreenPrimary
+import com.finploit.android.ui.theme.SurfaceDark
+import com.finploit.android.ui.theme.TextPrimary
+import com.finploit.android.ui.theme.TextSecondary
+import com.finploit.android.ui.theme.WarningAmber
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun FiscalScreen(
+    viewModel: FiscalViewModel,
+    onBack: () -> Unit,
+) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(uiState.message, uiState.error) {
+        val text = uiState.message ?: uiState.error
+        if (text != null) {
+            snackbarHostState.showSnackbar(text)
+            viewModel.clearMessage()
+        }
+    }
+
+    Scaffold(
+        containerColor = SurfaceDark,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        topBar = {
+            TopAppBar(
+                title = { Text("Fiscal", fontWeight = FontWeight.Bold) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Voltar",
+                            tint = Color.White,
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = SurfaceDark,
+                    titleContentColor = Color.White,
+                ),
+            )
+        },
+    ) { padding ->
+        when {
+            uiState.isLoading -> Box(
+                Modifier.fillMaxSize().padding(padding),
+                contentAlignment = Alignment.Center,
+            ) {
+                CircularProgressIndicator(color = GreenPrimary)
+            }
+
+            else -> Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .verticalScroll(rememberScrollState())
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                if (uiState.isConfigured) {
+                    ConfiguredPanel(uiState)
+                } else {
+                    SetupForm(
+                        isSubmitting = uiState.isSubmitting,
+                        onSave = { start, nif -> viewModel.saveProfile(start, nif) },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SetupForm(
+    isSubmitting: Boolean,
+    onSave: (activityStartDate: String, fiscalNumber: String?) -> Unit,
+) {
+    var activityStart by remember { mutableStateOf("") }
+    var fiscalNumber by remember { mutableStateOf("") }
+    val validDate = Regex("""\d{4}-\d{2}-\d{2}""").matches(activityStart.trim())
+
+    SectionCard {
+        Text(
+            "Obrigações fiscais em Portugal",
+            color = TextPrimary,
+            fontWeight = FontWeight.Bold,
+            fontSize = 17.sp,
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "Configure o seu regime para ver os prazos de IVA, IRS e Segurança Social ao longo do ano. " +
+                "Pensado para o regime simplificado com isenção de IVA (art.º 53.º).",
+            color = TextSecondary,
+            fontSize = 13.sp,
+        )
+        Spacer(Modifier.height(16.dp))
+
+        OutlinedTextField(
+            value = "Portugal",
+            onValueChange = {},
+            label = { Text("País") },
+            enabled = false,
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+            colors = OutlinedTextFieldDefaults.colors(
+                disabledTextColor = TextPrimary,
+                disabledBorderColor = TextSecondary.copy(alpha = 0.4f),
+                disabledLabelColor = TextSecondary,
+            ),
+        )
+        Spacer(Modifier.height(12.dp))
+        OutlinedTextField(
+            value = activityStart,
+            onValueChange = { activityStart = it },
+            label = { Text("Data de início de atividade") },
+            placeholder = { Text("AAAA-MM-DD") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = GreenPrimary,
+                focusedLabelColor = GreenPrimary,
+                unfocusedTextColor = TextPrimary,
+                focusedTextColor = TextPrimary,
+            ),
+        )
+        Spacer(Modifier.height(12.dp))
+        OutlinedTextField(
+            value = fiscalNumber,
+            onValueChange = { fiscalNumber = it },
+            label = { Text("NIF (opcional)") },
+            placeholder = { Text("Ex.: 123456789") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = GreenPrimary,
+                focusedLabelColor = GreenPrimary,
+                unfocusedTextColor = TextPrimary,
+                focusedTextColor = TextPrimary,
+            ),
+        )
+        Spacer(Modifier.height(16.dp))
+        Button(
+            onClick = { if (validDate) onSave(activityStart.trim(), fiscalNumber.trim()) },
+            enabled = !isSubmitting && validDate,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = GreenPrimary,
+                contentColor = BackgroundDark,
+            ),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(
+                if (isSubmitting) "A guardar..." else "Guardar perfil fiscal",
+                fontWeight = FontWeight.Bold,
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ConfiguredPanel(uiState: FiscalUiState) {
+    val data = uiState.data ?: return
+    val profile = data.profile
+    val status = data.status
+
+    // Profile chips
+    SectionCard {
+        Text("O seu perfil fiscal", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+        Spacer(Modifier.height(12.dp))
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            profile?.regimeLabel?.let { Chip(it) }
+            profile?.ivaLabel?.let { Chip(it) }
+            if (status?.socialSecurityFirstYearExempt == true) {
+                Chip("SS 1.º ano isento")
+            }
+        }
+        if (status?.socialSecurityExemptUntil != null) {
+            Spacer(Modifier.height(10.dp))
+            Text(
+                "Segurança Social isenta até ${status.socialSecurityExemptUntil}.",
+                color = TextSecondary,
+                fontSize = 13.sp,
+            )
+        }
+        profile?.activityStartDate?.let {
+            Spacer(Modifier.height(6.dp))
+            Text("Início de atividade: $it", color = TextSecondary, fontSize = 13.sp)
+        }
+    }
+
+    // Next deadline highlight
+    data.nextDeadline?.let { next ->
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = GreenPrimary.copy(alpha = 0.12f)),
+        ) {
+            Column(Modifier.padding(18.dp)) {
+                Text("Próximo prazo", color = GreenPrimary, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Spacer(Modifier.height(6.dp))
+                Text(next.title ?: "", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                next.description?.let {
+                    Spacer(Modifier.height(4.dp))
+                    Text(it, color = TextSecondary, fontSize = 13.sp)
+                }
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "${next.date ?: ""} · ${daysUntilLabel(next.daysUntil)}",
+                    color = GreenPrimary,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 13.sp,
+                )
+            }
+        }
+    }
+
+    // Upcoming deadlines
+    if (data.upcoming.isNotEmpty()) {
+        SectionCard {
+            Text("Próximos prazos", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Spacer(Modifier.height(4.dp))
+            data.upcoming.forEach { DeadlineRow(it) }
+        }
+    }
+
+    // Obligations
+    if (data.obligations.isNotEmpty()) {
+        SectionCard {
+            Text("As suas obrigações", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Spacer(Modifier.height(4.dp))
+            data.obligations.forEach { ObligationRow(it) }
+        }
+    }
+
+    // Disclaimer
+    data.disclaimer?.let {
+        Text(
+            it,
+            color = TextSecondary,
+            fontSize = 11.sp,
+        )
+    }
+}
+
+@Composable
+private fun DeadlineRow(deadline: FiscalDeadlineDto) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(deadline.title ?: "", color = TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+            deadline.description?.let {
+                Text(it, color = TextSecondary, fontSize = 12.sp)
+            }
+            Text(
+                "${deadline.date ?: ""}${deadline.endDate?.let { " – $it" } ?: ""}",
+                color = TextSecondary,
+                fontSize = 12.sp,
+            )
+        }
+        Spacer(Modifier.width(10.dp))
+        Column(horizontalAlignment = Alignment.End) {
+            deadline.tag?.let { Chip(it) }
+            Spacer(Modifier.height(4.dp))
+            Text(
+                daysUntilLabel(deadline.daysUntil),
+                color = if (deadline.daysUntil <= 7) WarningAmber else TextSecondary,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ObligationRow(obligation: FiscalObligationDto) {
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(obligation.title ?: "", color = TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, modifier = Modifier.weight(1f))
+            obligation.frequency?.let { Chip(it) }
+        }
+        obligation.description?.let {
+            Spacer(Modifier.height(2.dp))
+            Text(it, color = TextSecondary, fontSize = 12.sp)
+        }
+    }
+}
+
+@Composable
+private fun Chip(text: String) {
+    Box(
+        modifier = Modifier
+            .background(CardElevated, RoundedCornerShape(8.dp))
+            .padding(horizontal = 10.dp, vertical = 5.dp),
+    ) {
+        Text(text, color = GreenPrimary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+@Composable
+private fun SectionCard(content: @Composable () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = CardBackground),
+    ) {
+        Column(Modifier.padding(18.dp)) { content() }
+    }
+}
+
+private fun daysUntilLabel(days: Int): String = when {
+    days <= 0 -> "hoje"
+    days == 1 -> "em 1 dia"
+    else -> "em $days dias"
+}

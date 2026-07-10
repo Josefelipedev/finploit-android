@@ -77,9 +77,10 @@ fun AddRecurringScreen(
     var amount by remember { mutableStateOf("") }
     var frequency by remember { mutableStateOf("monthly") }
     var dueDay by remember { mutableStateOf("1") }
-    var categoria by remember { mutableStateOf("") }
+    var selectedCategoryId by remember { mutableStateOf<Int?>(null) }
     var occurrences by remember { mutableStateOf("12") }
     var frequencyExpanded by remember { mutableStateOf(false) }
+    var categoryExpanded by remember { mutableStateOf(false) }
 
     LaunchedEffect(uiState.saveSuccess) {
         if (uiState.saveSuccess) { viewModel.clearSaveState(); onDismiss() }
@@ -88,7 +89,7 @@ fun AddRecurringScreen(
         uiState.saveError?.let { snackbarHostState.showSnackbar(it); viewModel.clearSaveState() }
     }
 
-    val isValid = description.isNotBlank() && amount.toDoubleOrNull() != null && categoria.isNotBlank()
+    val isValid = description.isNotBlank() && amount.toDoubleOrNull() != null && selectedCategoryId != null
 
     Column(
         modifier = Modifier
@@ -153,15 +154,35 @@ fun AddRecurringScreen(
                 colors = fieldColors(),
                 shape = RoundedCornerShape(12.dp),
             )
-            OutlinedTextField(
-                value = categoria,
-                onValueChange = { categoria = it },
-                label = { Text("Categoria") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-                colors = fieldColors(),
-                shape = RoundedCornerShape(12.dp),
-            )
+            ExposedDropdownMenuBox(
+                expanded = categoryExpanded,
+                onExpandedChange = { categoryExpanded = it },
+            ) {
+                OutlinedTextField(
+                    value = uiState.categories.find { it.id == selectedCategoryId }?.name ?: "",
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Categoria") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = categoryExpanded) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .menuAnchor(MenuAnchorType.PrimaryNotEditable),
+                    colors = fieldColors(),
+                    shape = RoundedCornerShape(12.dp),
+                )
+                ExposedDropdownMenu(
+                    expanded = categoryExpanded,
+                    onDismissRequest = { categoryExpanded = false },
+                    containerColor = Color(0xFF1E1E2E),
+                ) {
+                    uiState.categories.forEach { cat ->
+                        DropdownMenuItem(
+                            text = { Text(cat.name, color = Color.White) },
+                            onClick = { selectedCategoryId = cat.id; categoryExpanded = false },
+                        )
+                    }
+                }
+            }
 
             ExposedDropdownMenuBox(
                 expanded = frequencyExpanded,
@@ -226,7 +247,7 @@ fun AddRecurringScreen(
                         type = type,
                         frequency = frequency,
                         dueDay = dueDay.toIntOrNull() ?: 1,
-                        categoria = categoria.trim(),
+                        categoryId = selectedCategoryId ?: return@Button,
                         endDate = "2099-12-31",
                         occurrences = occurrences.toIntOrNull() ?: 12,
                     )

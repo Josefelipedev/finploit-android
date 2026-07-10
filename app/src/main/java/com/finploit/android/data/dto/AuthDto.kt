@@ -48,4 +48,8 @@ data class UpdateProfileRequest(
     val currency: String? = null,
     val name: String? = null,
     val displayName: String? = null,
+    val fiscalCountry: String? = null,
+    val fiscalRegime: String? = null,
+    val activityStartDate: String? = null,
+    val fiscalNumber: String? = null,
 )
