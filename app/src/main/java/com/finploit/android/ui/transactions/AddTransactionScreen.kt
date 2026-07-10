@@ -79,6 +79,8 @@ fun AddTransactionScreen(
     var description by remember { mutableStateOf("") }
     var selectedCategoryId by remember { mutableStateOf<Int?>(null) }
     var categoryMenuExpanded by remember { mutableStateOf(false) }
+    var selectedAccountId by remember { mutableStateOf<Int?>(null) }
+    var accountMenuExpanded by remember { mutableStateOf(false) }
     var referenceDate by remember { mutableStateOf(LocalDate.now().toString()) }
     var showDatePicker by remember { mutableStateOf(false) }
 
@@ -98,6 +100,9 @@ fun AddTransactionScreen(
 
     val selectedCategoryName = uiState.categories.find { it.id == selectedCategoryId }?.name
         ?: "Sem categoria"
+
+    val selectedAccount = uiState.accounts.find { it.id == selectedAccountId }
+    val selectedAccountLabel = selectedAccount?.let { "${it.bankName} · ${it.currency}" } ?: "Sem conta"
 
     Column(
         modifier = Modifier
@@ -204,6 +209,43 @@ fun AddTransactionScreen(
                 }
             }
 
+            // Conta (opcional)
+            if (uiState.accounts.isNotEmpty()) {
+                ExposedDropdownMenuBox(
+                    expanded = accountMenuExpanded,
+                    onExpandedChange = { accountMenuExpanded = it },
+                ) {
+                    OutlinedTextField(
+                        value = selectedAccountLabel,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Conta") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = accountMenuExpanded) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor(MenuAnchorType.PrimaryNotEditable),
+                        colors = fieldColors(),
+                        shape = RoundedCornerShape(12.dp),
+                    )
+                    ExposedDropdownMenu(
+                        expanded = accountMenuExpanded,
+                        onDismissRequest = { accountMenuExpanded = false },
+                        containerColor = SurfaceDark,
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Sem conta", color = Color.White) },
+                            onClick = { selectedAccountId = null; accountMenuExpanded = false },
+                        )
+                        uiState.accounts.forEach { account ->
+                            DropdownMenuItem(
+                                text = { Text("${account.bankName} · ${account.currency}", color = Color.White) },
+                                onClick = { selectedAccountId = account.id; accountMenuExpanded = false },
+                            )
+                        }
+                    }
+                }
+            }
+
             // Data da transação
             OutlinedTextField(
                 value = referenceDate,
@@ -231,6 +273,7 @@ fun AddTransactionScreen(
                         description = description.ifBlank { null },
                         categoryId = selectedCategoryId,
                         referenceDate = referenceDate,
+                        accountId = selectedAccountId,
                     )
                 },
                 enabled = amount.isNotBlank() && amount.replace(',', '.').toDoubleOrNull() != null && !uiState.isCreating,

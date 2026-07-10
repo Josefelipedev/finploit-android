@@ -48,6 +48,7 @@ class FinanceRepository @Inject constructor(
         description: String?,
         categoryId: Int?,
         referenceDate: String? = null,
+        accountId: Int? = null,
     ): Result<FinanceItemDto> = runCatching {
         api.createTransaction(
             CreateFinanceRequest(
@@ -56,6 +57,7 @@ class FinanceRepository @Inject constructor(
                 description = description,
                 categoryId = categoryId,
                 referenceDate = referenceDate,
+                accountId = accountId,
             )
         )
     }

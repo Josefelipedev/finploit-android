@@ -39,6 +39,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.activity.compose.BackHandler
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.finploit.android.ui.accounts.AccountsScreen
+import com.finploit.android.ui.categories.CategoriesScreen
 import com.finploit.android.ui.couple.CoupleScreen
 import com.finploit.android.ui.fiscal.FiscalScreen
 import androidx.compose.ui.Alignment
@@ -73,6 +75,8 @@ fun ProfileScreen(
     val selectedCurrencyCode by viewModel.currencyCode.collectAsStateWithLifecycle()
     var showCouple by remember { mutableStateOf(false) }
     var showFiscal by remember { mutableStateOf(false) }
+    var showAccounts by remember { mutableStateOf(false) }
+    var showCategories by remember { mutableStateOf(false) }
 
     if (showCouple) {
         BackHandler { showCouple = false }
@@ -83,6 +87,18 @@ fun ProfileScreen(
     if (showFiscal) {
         BackHandler { showFiscal = false }
         FiscalScreen(viewModel = hiltViewModel(), onBack = { showFiscal = false })
+        return
+    }
+
+    if (showAccounts) {
+        BackHandler { showAccounts = false }
+        AccountsScreen(viewModel = hiltViewModel(), onBack = { showAccounts = false })
+        return
+    }
+
+    if (showCategories) {
+        BackHandler { showCategories = false }
+        CategoriesScreen(viewModel = hiltViewModel(), onBack = { showCategories = false })
         return
     }
 
@@ -222,6 +238,58 @@ fun ProfileScreen(
                                         color = TextDisabled,
                                         fontSize = 12.sp,
                                     )
+                                }
+                                Text("›", color = TextSecondary, fontSize = 22.sp)
+                            }
+                        }
+                        Spacer(Modifier.height(16.dp))
+                    }
+
+                    // Contas bancárias
+                    item {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(16.dp))
+                                .clickable { showAccounts = true },
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = CardBackground),
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(20.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text("🏦", fontSize = 22.sp)
+                                Spacer(Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Contas", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                    Text("Contas bancárias e saldos", color = TextDisabled, fontSize = 12.sp)
+                                }
+                                Text("›", color = TextSecondary, fontSize = 22.sp)
+                            }
+                        }
+                        Spacer(Modifier.height(16.dp))
+                    }
+
+                    // Categorias
+                    item {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(16.dp))
+                                .clickable { showCategories = true },
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = CardBackground),
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(20.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text("🏷️", fontSize = 22.sp)
+                                Spacer(Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Categorias", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                    Text("Criar e gerir categorias", color = TextDisabled, fontSize = 12.sp)
                                 }
                                 Text("›", color = TextSecondary, fontSize = 22.sp)
                             }

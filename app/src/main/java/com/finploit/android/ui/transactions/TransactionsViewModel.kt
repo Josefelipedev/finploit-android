@@ -2,8 +2,10 @@ package com.finploit.android.ui.transactions
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.finploit.android.data.dto.BankAccountDto
 import com.finploit.android.data.dto.FinanceCategoryDto
 import com.finploit.android.data.dto.FinanceItemDto
+import com.finploit.android.data.repository.BankAccountRepository
 import com.finploit.android.data.repository.FinanceCategoryRepository
 import com.finploit.android.data.repository.FinanceRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -31,12 +33,14 @@ data class TransactionsUiState(
     val updateError: String? = null,
     val snackbarMessage: String? = null,
     val categories: List<FinanceCategoryDto> = emptyList(),
+    val accounts: List<BankAccountDto> = emptyList(),
 )
 
 @HiltViewModel
 class TransactionsViewModel @Inject constructor(
     private val financeRepository: FinanceRepository,
     private val categoryRepository: FinanceCategoryRepository,
+    private val bankAccountRepository: BankAccountRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(TransactionsUiState(isLoading = true))
@@ -45,6 +49,7 @@ class TransactionsViewModel @Inject constructor(
     init {
         loadTransactions()
         loadCategories()
+        loadAccounts()
     }
 
     fun loadTransactions() {
@@ -69,6 +74,15 @@ class TransactionsViewModel @Inject constructor(
         viewModelScope.launch {
             categoryRepository.getCategories()
                 .onSuccess { list -> _uiState.value = _uiState.value.copy(categories = list) }
+        }
+    }
+
+    fun loadAccounts() {
+        viewModelScope.launch {
+            bankAccountRepository.getAll()
+                .onSuccess { list ->
+                    _uiState.value = _uiState.value.copy(accounts = list.filter { !it.isArchived })
+                }
         }
     }
 
@@ -110,10 +124,11 @@ class TransactionsViewModel @Inject constructor(
         description: String?,
         categoryId: Int?,
         referenceDate: String? = null,
+        accountId: Int? = null,
     ) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isCreating = true, createError = null, createSuccess = false)
-            financeRepository.createTransaction(type, amount, description, categoryId, referenceDate)
+            financeRepository.createTransaction(type, amount, description, categoryId, referenceDate, accountId)
                 .onSuccess {
                     _uiState.value = _uiState.value.copy(isCreating = false, createSuccess = true)
                     loadTransactions()

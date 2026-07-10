@@ -23,6 +23,7 @@ data class CreateFinanceRequest(
     val iconName: String? = null,
     val referenceDate: String? = null,
     val categoryId: Int? = null,
+    val accountId: Int? = null,
 )
 
 data class TransactionDto(
