@@ -56,9 +56,9 @@ class BillsViewModel @Inject constructor(
         load(shiftMonth(1))
     }
 
-    fun togglePaid(item: BillItemDto) {
+    fun togglePaid(item: BillItemDto, amount: Double? = null) {
         viewModelScope.launch {
-            val result = if (item.isPaid) repository.unpay(item.id) else repository.pay(item.id)
+            val result = if (item.isPaid) repository.unpay(item.id) else repository.pay(item.id, amount)
             if (result.isSuccess) {
                 load(_uiState.value.month)
             } else {

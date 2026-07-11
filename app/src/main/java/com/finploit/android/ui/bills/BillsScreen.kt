@@ -18,10 +18,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
@@ -30,6 +34,9 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -39,20 +46,23 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.finploit.android.data.dto.BillItemDto
+import com.finploit.android.ui.theme.BackgroundDark
 import com.finploit.android.ui.theme.CardBackground
-import com.finploit.android.ui.theme.CardElevated
 import com.finploit.android.ui.theme.ExpenseRed
 import com.finploit.android.ui.theme.GreenPrimary
 import com.finploit.android.ui.theme.LocalCurrencyConfig
@@ -76,6 +86,7 @@ fun BillsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    var payTarget by remember { mutableStateOf<BillItemDto?>(null) }
 
     LaunchedEffect(uiState.error) {
         val text = uiState.error
@@ -140,12 +151,94 @@ fun BillsScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     items(uiState.items, key = { it.id }) { item ->
-                        BillCard(item = item, onToggle = { viewModel.togglePaid(item) })
+                        BillCard(
+                            item = item,
+                            onToggle = {
+                                if (item.isPaid) viewModel.togglePaid(item) else payTarget = item
+                            },
+                        )
                     }
                 }
             }
         }
     }
+
+    payTarget?.let { target ->
+        PayAmountDialog(
+            item = target,
+            onDismiss = { payTarget = null },
+            onConfirm = { amount ->
+                viewModel.togglePaid(target, amount)
+                payTarget = null
+            },
+        )
+    }
+}
+
+@Composable
+private fun PayAmountDialog(
+    item: BillItemDto,
+    onDismiss: () -> Unit,
+    onConfirm: (Double) -> Unit,
+) {
+    val itemCurrency = currencyConfigByCode(item.currency)
+    var text by remember { mutableStateOf("%.2f".format(item.amount)) }
+    val parsed = text.trim().replace(',', '.').toDoubleOrNull()
+    val canConfirm = parsed != null && parsed >= 0.0
+
+    AlertDialog(
+        containerColor = CardBackground,
+        onDismissRequest = onDismiss,
+        title = { Text("Marcar como paga", color = TextPrimary, fontWeight = FontWeight.Bold) },
+        text = {
+            Column {
+                Text(
+                    item.description,
+                    color = TextSecondary,
+                    fontSize = 13.sp,
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "Previsto ${itemCurrency.format(item.amount)}",
+                    color = TextDisabled,
+                    fontSize = 12.sp,
+                )
+                Spacer(Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    label = { Text("Valor pago (${itemCurrency.code})") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = GreenPrimary,
+                        focusedLabelColor = GreenPrimary,
+                        unfocusedTextColor = TextPrimary,
+                        focusedTextColor = TextPrimary,
+                        unfocusedLabelColor = TextSecondary,
+                    ),
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { if (canConfirm) onConfirm(parsed!!) },
+                enabled = canConfirm,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = GreenPrimary,
+                    contentColor = BackgroundDark,
+                ),
+            ) {
+                Text("Confirmar", fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            OutlinedButton(onClick = onDismiss) {
+                Text("Cancelar", color = TextSecondary)
+            }
+        },
+    )
 }
 
 @Composable
@@ -274,13 +367,23 @@ private fun BillCard(item: BillItemDto, onToggle: () -> Unit) {
                 }
             }
             Spacer(Modifier.width(10.dp))
-            Text(
-                itemCurrency.format(item.amount),
-                color = if (paid) TextDisabled else if (overdue) ExpenseRed else TextPrimary,
-                fontWeight = FontWeight.Bold,
-                fontSize = 15.sp,
-                textDecoration = if (paid) TextDecoration.LineThrough else TextDecoration.None,
-            )
+            val paidDiffers = paid && item.paidAmount != null && item.paidAmount != item.amount
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    itemCurrency.format(if (paidDiffers) item.paidAmount!! else item.amount),
+                    color = if (paid) TextDisabled else if (overdue) ExpenseRed else TextPrimary,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
+                    textDecoration = if (paid && !paidDiffers) TextDecoration.LineThrough else TextDecoration.None,
+                )
+                if (paidDiffers) {
+                    Text(
+                        "previsto ${itemCurrency.format(item.amount)}",
+                        color = TextDisabled,
+                        fontSize = 11.sp,
+                    )
+                }
+            }
         }
     }
 }
