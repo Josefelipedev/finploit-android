@@ -5,52 +5,72 @@ import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.finploit.android.data.preferences.UserPreferencesRepository
+import com.finploit.android.data.repository.BillsRepository
 import com.finploit.android.data.repository.GoalRepository
-import com.finploit.android.data.repository.RecurringRepository
 import com.finploit.android.ui.theme.currencyConfigByCode
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.flow.first
-import java.text.NumberFormat
-import java.util.Calendar
-import java.util.Locale
 
 @HiltWorker
 class ReminderWorker @AssistedInject constructor(
     @Assisted context: Context,
     @Assisted workerParams: WorkerParameters,
-    private val recurringRepository: RecurringRepository,
+    private val billsRepository: BillsRepository,
     private val goalRepository: GoalRepository,
     private val notificationHelper: NotificationHelper,
     private val preferencesRepository: UserPreferencesRepository,
 ) : CoroutineWorker(context, workerParams) {
 
     override suspend fun doWork(): Result {
-        checkRecurringBills()
+        checkPendingBills()
         checkGoalProgress()
         return Result.success()
     }
 
-    private suspend fun checkRecurringBills() {
-        val today = Calendar.getInstance().get(Calendar.DAY_OF_MONTH)
-        val tomorrow = if (today == Calendar.getInstance().getActualMaximum(Calendar.DAY_OF_MONTH)) 1 else today + 1
-        val currency = NumberFormat.getCurrencyInstance(Locale("pt", "BR"))
+    /**
+     * Lembra das contas a pagar PENDENTES que vencem hoje/amanhã ou estão em atraso.
+     * Usa as ocorrências (respeita status pago) e faz DEDUP via SharedPreferences:
+     * cada conta é notificada UMA vez; ids de contas já pagas são limpos.
+     */
+    private suspend fun checkPendingBills() {
+        val today = java.time.LocalDate.now()
+        val month = "%04d-%02d".format(today.year, today.monthValue)
+        val prefs = applicationContext.getSharedPreferences("bill_reminders", Context.MODE_PRIVATE)
 
-        recurringRepository.getAll()
-            .onSuccess { transactions ->
-                transactions
-                    .filter { it.dueDay != null && (it.dueDay == today || it.dueDay == tomorrow) }
-                    .forEachIndexed { index, tx ->
-                        val dayLabel = if (tx.dueDay == today) "hoje" else "amanhã"
-                        val typeLabel = if (tx.type == "expense") "Conta" else "Entrada"
-                        notificationHelper.sendNotification(
-                            id = 1000 + index,
-                            channelId = NotificationHelper.CHANNEL_RECURRING,
-                            title = "$typeLabel vence $dayLabel",
-                            body = "${tx.description ?: tx.type}: ${currency.format(tx.amount)}",
-                        )
+        billsRepository.getBills(month).onSuccess { resp ->
+            val pendingIds = resp.items.filter { it.status == "pending" }.map { it.id.toString() }.toSet()
+            // Dedup: mantém só ids ainda pendentes (limpa pagos/descartados) e não re-notifica
+            val notified = HashSet(prefs.getStringSet("notified", emptySet()) ?: emptySet())
+            notified.retainAll(pendingIds)
+
+            resp.items
+                .filter { it.status == "pending" && it.type == "expense" }
+                .forEach { item ->
+                    val due = runCatching { java.time.LocalDate.parse(item.dueDate.take(10)) }.getOrNull()
+                    val daysUntil = due?.let {
+                        java.time.temporal.ChronoUnit.DAYS.between(today, it)
                     }
-            }
+                    val inWindow = item.overdue || (daysUntil != null && daysUntil in 0L..1L)
+                    val key = item.id.toString()
+                    if (inWindow && !notified.contains(key)) {
+                        val label = when {
+                            item.overdue -> "em atraso"
+                            daysUntil == 0L -> "vence hoje"
+                            else -> "vence amanhã"
+                        }
+                        val value = currencyConfigByCode(item.currency).format(item.amount)
+                        notificationHelper.sendNotification(
+                            id = 10000 + item.id,
+                            channelId = NotificationHelper.CHANNEL_RECURRING,
+                            title = "Conta $label",
+                            body = "${item.description}: $value",
+                        )
+                        notified.add(key)
+                    }
+                }
+            prefs.edit().putStringSet("notified", notified).apply()
+        }
     }
 
     private suspend fun checkGoalProgress() {
