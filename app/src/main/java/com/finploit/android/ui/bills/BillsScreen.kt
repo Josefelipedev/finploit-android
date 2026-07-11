@@ -263,7 +263,7 @@ private fun BillCard(item: BillItemDto, onToggle: () -> Unit) {
                         Text(name, color = TextSecondary, fontSize = 12.sp)
                         Spacer(Modifier.width(8.dp))
                     }
-                    Text("Vence ${item.dueDate}", color = TextSecondary, fontSize = 12.sp)
+                    Text("Vence ${formatDueDate(item.dueDate)}", color = TextSecondary, fontSize = 12.sp)
                 }
                 if (overdue || item.carriedOver) {
                     Spacer(Modifier.height(6.dp))
@@ -309,4 +309,12 @@ private fun parseColor(hex: String?): Color? {
         val normalized = if (value.startsWith("#")) value else "#$value"
         Color(android.graphics.Color.parseColor(normalized))
     }.getOrNull()
+}
+
+/** "2026-07-10T00:00:00.000Z" -> "10/07/2026" */
+private fun formatDueDate(iso: String): String = try {
+    val d = java.time.LocalDate.parse(iso.take(10))
+    "%02d/%02d/%d".format(d.dayOfMonth, d.monthValue, d.year)
+} catch (e: Exception) {
+    iso.take(10)
 }
