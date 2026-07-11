@@ -40,6 +40,7 @@ import androidx.compose.runtime.setValue
 import androidx.activity.compose.BackHandler
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.finploit.android.ui.accounts.AccountsScreen
+import com.finploit.android.ui.bills.BillsScreen
 import com.finploit.android.ui.categories.CategoriesScreen
 import com.finploit.android.ui.couple.CoupleScreen
 import com.finploit.android.ui.fiscal.FiscalScreen
@@ -77,6 +78,7 @@ fun ProfileScreen(
     var showFiscal by remember { mutableStateOf(false) }
     var showAccounts by remember { mutableStateOf(false) }
     var showCategories by remember { mutableStateOf(false) }
+    var showBills by remember { mutableStateOf(false) }
 
     if (showCouple) {
         BackHandler { showCouple = false }
@@ -99,6 +101,12 @@ fun ProfileScreen(
     if (showCategories) {
         BackHandler { showCategories = false }
         CategoriesScreen(viewModel = hiltViewModel(), onBack = { showCategories = false })
+        return
+    }
+
+    if (showBills) {
+        BackHandler { showBills = false }
+        BillsScreen(viewModel = hiltViewModel(), onBack = { showBills = false })
         return
     }
 
@@ -238,6 +246,32 @@ fun ProfileScreen(
                                         color = TextDisabled,
                                         fontSize = 12.sp,
                                     )
+                                }
+                                Text("›", color = TextSecondary, fontSize = 22.sp)
+                            }
+                        }
+                        Spacer(Modifier.height(16.dp))
+                    }
+
+                    // Contas a Pagar
+                    item {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(16.dp))
+                                .clickable { showBills = true },
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = CardBackground),
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(20.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text("💳", fontSize = 22.sp)
+                                Spacer(Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Contas a Pagar", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                    Text("Faturas do mês e o que já pagou", color = TextDisabled, fontSize = 12.sp)
                                 }
                                 Text("›", color = TextSecondary, fontSize = 22.sp)
                             }
