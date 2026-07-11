@@ -9,6 +9,15 @@ data class BillsResponse(
     val rateDate: String? = null,
     val byCurrency: List<BillCurrencyTotalDto>? = null,
     val unconvertedCurrencies: List<String>? = null,
+    val expense: BillTypeTotalsDto = BillTypeTotalsDto(),
+    val income: BillTypeTotalsDto = BillTypeTotalsDto(),
+    val projectedBalance: Double? = null,
+    val realizedBalance: Double? = null,
+)
+
+data class BillTypeTotalsDto(
+    val pending: Double = 0.0,
+    val paid: Double = 0.0,
 )
 
 data class BillCurrencyTotalDto(
@@ -27,13 +36,31 @@ data class BillItemDto(
     val categoryColor: String? = null,
     val dueDate: String = "",
     val status: String = "pending",
+    val type: String = "expense",
     val paidAt: String? = null,
     val overdue: Boolean = false,
     val carriedOver: Boolean = false,
 ) {
     val isPaid: Boolean get() = status == "paid"
+    val isIncome: Boolean get() = type == "income"
 }
 
 data class PayBody(
     val amount: Double? = null,
+)
+
+data class CreateBillRequest(
+    val description: String,
+    val amount: Double,
+    val dueDate: String,
+    val type: String,
+    val currency: String? = null,
+    val categoryId: Int? = null,
+)
+
+data class UpdateBillRequest(
+    val description: String? = null,
+    val amount: Double? = null,
+    val dueDate: String? = null,
+    val categoryId: Int? = null,
 )
