@@ -1,6 +1,7 @@
 package com.finploit.android.ui.fiscal
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -47,6 +49,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.finploit.android.data.dto.ChatMessageDto
 import com.finploit.android.data.dto.FiscalDeadlineDto
 import com.finploit.android.data.dto.FiscalObligationDto
 import com.finploit.android.ui.theme.BackgroundDark
@@ -115,6 +118,11 @@ fun FiscalScreen(
             ) {
                 if (uiState.isConfigured) {
                     ConfiguredPanel(uiState)
+                    FiscalAssistant(
+                        messages = uiState.messages,
+                        isAsking = uiState.isAsking,
+                        onAsk = { viewModel.ask(it) },
+                    )
                 } else {
                     SetupForm(
                         isSubmitting = uiState.isSubmitting,
@@ -295,6 +303,126 @@ private fun ConfiguredPanel(uiState: FiscalUiState) {
             color = TextSecondary,
             fontSize = 11.sp,
         )
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun FiscalAssistant(
+    messages: List<ChatMessageDto>,
+    isAsking: Boolean,
+    onAsk: (String) -> Unit,
+) {
+    var draft by remember { mutableStateOf("") }
+    val suggestions = listOf(
+        "Preciso de fazer algo agora?",
+        "Como emito uma fatura-recibo?",
+        "Quando entrego o IRS?",
+        "E se passar dos 15.000 €?",
+    )
+
+    SectionCard {
+        Text("🤖 Assistente Fiscal", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+        Spacer(Modifier.height(4.dp))
+        Text(
+            "Tire as suas dúvidas fiscais em português. As respostas são orientações gerais.",
+            color = TextSecondary,
+            fontSize = 12.sp,
+        )
+        Spacer(Modifier.height(14.dp))
+
+        if (messages.isEmpty() && !isAsking) {
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                suggestions.forEach { suggestion ->
+                    SuggestionChip(suggestion) { onAsk(suggestion) }
+                }
+            }
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                messages.forEach { ChatBubble(it) }
+                if (isAsking) {
+                    Text(
+                        "a pensar…",
+                        color = TextSecondary,
+                        fontSize = 13.sp,
+                        modifier = Modifier.padding(vertical = 2.dp),
+                    )
+                }
+            }
+        }
+
+        Spacer(Modifier.height(14.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            OutlinedTextField(
+                value = draft,
+                onValueChange = { draft = it },
+                placeholder = { Text("Escreva a sua pergunta…") },
+                modifier = Modifier.weight(1f),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = GreenPrimary,
+                    focusedLabelColor = GreenPrimary,
+                    unfocusedTextColor = TextPrimary,
+                    focusedTextColor = TextPrimary,
+                ),
+            )
+            Spacer(Modifier.width(8.dp))
+            val canSend = draft.isNotBlank() && !isAsking
+            IconButton(
+                onClick = {
+                    if (canSend) {
+                        onAsk(draft)
+                        draft = ""
+                    }
+                },
+                enabled = canSend,
+            ) {
+                Icon(
+                    Icons.AutoMirrored.Filled.Send,
+                    contentDescription = "Enviar",
+                    tint = if (canSend) GreenPrimary else TextSecondary,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChatBubble(message: ChatMessageDto) {
+    val isUser = message.role == "user"
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start,
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth(0.85f)
+                .background(
+                    if (isUser) GreenPrimary.copy(alpha = 0.16f) else SurfaceDark,
+                    RoundedCornerShape(14.dp),
+                )
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+        ) {
+            Text(
+                message.content,
+                color = TextPrimary,
+                fontSize = 13.sp,
+            )
+        }
+    }
+}
+
+@Composable
+private fun SuggestionChip(text: String, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .background(CardElevated, RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+    ) {
+        Text(text, color = GreenPrimary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
     }
 }
 

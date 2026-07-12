@@ -2,6 +2,7 @@ package com.finploit.android.ui.fiscal
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.finploit.android.data.dto.ChatMessageDto
 import com.finploit.android.data.dto.FiscalObligationsResponse
 import com.finploit.android.data.repository.FiscalRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -16,6 +17,8 @@ data class FiscalUiState(
     val isSubmitting: Boolean = false,
     val message: String? = null,
     val error: String? = null,
+    val messages: List<ChatMessageDto> = emptyList(),
+    val isAsking: Boolean = false,
 ) {
     val isConfigured: Boolean get() = data?.configured == true
 }
@@ -65,6 +68,32 @@ class FiscalViewModel @Inject constructor(
                     error = result.exceptionOrNull()?.message ?: "Não foi possível guardar. Tente novamente.",
                 )
             }
+        }
+    }
+
+    fun ask(question: String) {
+        val trimmed = question.trim()
+        if (trimmed.isBlank() || _uiState.value.isAsking) return
+
+        val history = _uiState.value.messages
+        val withUser = history + ChatMessageDto(role = "user", content = trimmed)
+        _uiState.value = _uiState.value.copy(messages = withUser, isAsking = true)
+
+        viewModelScope.launch {
+            val result = repository.ask(trimmed, history)
+            val answer = result.getOrNull()
+            val reply = if (result.isSuccess && answer != null) {
+                ChatMessageDto(role = "assistant", content = answer)
+            } else {
+                ChatMessageDto(
+                    role = "assistant",
+                    content = "Não foi possível responder agora. Tente novamente.",
+                )
+            }
+            _uiState.value = _uiState.value.copy(
+                messages = _uiState.value.messages + reply,
+                isAsking = false,
+            )
         }
     }
 

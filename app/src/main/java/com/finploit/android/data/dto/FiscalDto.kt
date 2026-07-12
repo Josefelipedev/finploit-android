@@ -46,3 +46,17 @@ data class FiscalDeadlineDto(
     val tag: String? = null,
     val daysUntil: Int = 0,
 )
+
+data class ChatMessageDto(
+    val role: String,
+    val content: String,
+)
+
+data class AskRequest(
+    val question: String,
+    val history: List<ChatMessageDto>? = null,
+)
+
+data class AskResponse(
+    val answer: String = "",
+)
