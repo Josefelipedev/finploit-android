@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.finploit.android.data.dto.ChatMessageDto
 import com.finploit.android.data.dto.FiscalObligationsResponse
+import com.finploit.android.data.dto.FiscalProfileSettings
 import com.finploit.android.data.repository.FiscalRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -47,15 +48,10 @@ class FiscalViewModel @Inject constructor(
         }
     }
 
-    fun saveProfile(activityStartDate: String, fiscalNumber: String?) {
+    fun saveProfile(settings: FiscalProfileSettings) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isSubmitting = true, error = null)
-            val result = repository.saveProfile(
-                country = "PT",
-                regime = "PT_SIMPLIFICADO_ISENCAO_ART53",
-                activityStartDate = activityStartDate,
-                fiscalNumber = fiscalNumber,
-            )
+            val result = repository.saveProfile(settings)
             if (result.isSuccess) {
                 _uiState.value = _uiState.value.copy(
                     isSubmitting = false,
