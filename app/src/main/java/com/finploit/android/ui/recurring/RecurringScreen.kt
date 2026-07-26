@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Delete
@@ -52,10 +53,11 @@ import com.finploit.android.ui.theme.Green80
 import com.finploit.android.ui.theme.IncomeGreen
 import com.finploit.android.ui.theme.SurfaceDark
 import com.finploit.android.ui.theme.LocalCurrencyConfig
+import com.finploit.android.ui.theme.currencyConfigByCode
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun RecurringScreen(viewModel: RecurringViewModel) {
+fun RecurringScreen(viewModel: RecurringViewModel, onBack: (() -> Unit)? = null) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     Column(
@@ -65,6 +67,13 @@ fun RecurringScreen(viewModel: RecurringViewModel) {
     ) {
         TopAppBar(
             title = { Text("Recorrentes", fontWeight = FontWeight.Bold) },
+            navigationIcon = {
+                if (onBack != null) {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar", tint = Color.White)
+                    }
+                }
+            },
             colors = TopAppBarDefaults.topAppBarColors(
                 containerColor = SurfaceDark,
                 titleContentColor = Color.White,
@@ -159,7 +168,8 @@ private fun RecurringCard(tx: RecurringTransactionDto) {
     val isIncome = tx.type == "income"
     val color = if (isIncome) IncomeGreen else ExpenseRed
     val icon = if (isIncome) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward
-    val currency = LocalCurrencyConfig.current
+    // Moeda NATIVA da recorrência; cai na moeda de exibição só se o backend não mandar
+    val currency = tx.currency?.let { currencyConfigByCode(it) } ?: LocalCurrencyConfig.current
 
     val frequencyLabel = when (tx.frequency) {
         "daily" -> "Diário"

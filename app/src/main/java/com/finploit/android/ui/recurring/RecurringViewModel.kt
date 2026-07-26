@@ -64,6 +64,7 @@ class RecurringViewModel @Inject constructor(
         categoryId: Int,
         endDate: String,
         occurrences: Int,
+        currency: String? = null,
     ) {
         // Backend maps: type == "despesa" → "expense", anything else → "income"
         // So we must send "despesa" for expenses; "receita" for income
@@ -78,6 +79,7 @@ class RecurringViewModel @Inject constructor(
                 CreateRecurringRequest(
                     description = description,
                     amount = amount,
+                    currency = currency,
                     type = backendType,
                     frequency = frequency,
                     dueDay = dueDay,

@@ -44,6 +44,7 @@ import com.finploit.android.ui.bills.BillsScreen
 import com.finploit.android.ui.categories.CategoriesScreen
 import com.finploit.android.ui.couple.CoupleScreen
 import com.finploit.android.ui.fiscal.FiscalScreen
+import com.finploit.android.ui.recurring.RecurringScreen
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -79,6 +80,7 @@ fun ProfileScreen(
     var showAccounts by remember { mutableStateOf(false) }
     var showCategories by remember { mutableStateOf(false) }
     var showBills by remember { mutableStateOf(false) }
+    var showRecurring by remember { mutableStateOf(false) }
 
     if (showCouple) {
         BackHandler { showCouple = false }
@@ -107,6 +109,12 @@ fun ProfileScreen(
     if (showBills) {
         BackHandler { showBills = false }
         BillsScreen(viewModel = hiltViewModel(), onBack = { showBills = false })
+        return
+    }
+
+    if (showRecurring) {
+        BackHandler { showRecurring = false }
+        RecurringScreen(viewModel = hiltViewModel(), onBack = { showRecurring = false })
         return
     }
 
@@ -272,6 +280,32 @@ fun ProfileScreen(
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text("Contas a Pagar", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                                     Text("Faturas do mês e o que já pagou", color = TextDisabled, fontSize = 12.sp)
+                                }
+                                Text("›", color = TextSecondary, fontSize = 22.sp)
+                            }
+                        }
+                        Spacer(Modifier.height(16.dp))
+                    }
+
+                    // Recorrentes (geram as Contas a Pagar do mês)
+                    item {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(16.dp))
+                                .clickable { showRecurring = true },
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = CardBackground),
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(20.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text("🔁", fontSize = 22.sp)
+                                Spacer(Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Recorrentes", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                    Text("Assinaturas e contas fixas que geram as Contas a Pagar", color = TextDisabled, fontSize = 12.sp)
                                 }
                                 Text("›", color = TextSecondary, fontSize = 22.sp)
                             }

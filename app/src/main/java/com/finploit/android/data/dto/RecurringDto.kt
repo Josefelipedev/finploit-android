@@ -4,6 +4,7 @@ data class RecurringTransactionDto(
     val id: Int,
     val description: String?,
     val amount: Double,
+    val currency: String? = null,
     val type: String,
     val frequency: String,
     val dueDay: Int?,
@@ -18,6 +19,7 @@ data class RecurringTransactionDto(
 data class CreateRecurringRequest(
     val description: String,
     val amount: Double,
+    val currency: String? = null,
     val type: String,
     val frequency: String,
     val dueDay: Int,

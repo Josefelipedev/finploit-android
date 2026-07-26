@@ -71,6 +71,7 @@ fun AddRecurringScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    val currencyConfig = LocalCurrencyConfig.current
 
     var type by remember { mutableStateOf("expense") }
     var description by remember { mutableStateOf("") }
@@ -147,7 +148,7 @@ fun AddRecurringScreen(
             OutlinedTextField(
                 value = amount,
                 onValueChange = { amount = it.filter { c -> c.isDigit() || c == '.' } },
-                label = { Text("Valor (${LocalCurrencyConfig.current.symbol})") },
+                label = { Text("Valor (${currencyConfig.symbol})") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
@@ -250,6 +251,7 @@ fun AddRecurringScreen(
                         categoryId = selectedCategoryId ?: return@Button,
                         endDate = "2099-12-31",
                         occurrences = occurrences.toIntOrNull() ?: 12,
+                        currency = currencyConfig.code,
                     )
                 },
                 enabled = isValid && !uiState.isSaving,
