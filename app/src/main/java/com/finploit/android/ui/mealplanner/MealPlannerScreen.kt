@@ -52,7 +52,7 @@ fun MealPlannerScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val currencyCode by viewModel.currencyCode.collectAsStateWithLifecycle()
-    val tabs = listOf("Cardápio", "Compras", "Agenda", "Histórico")
+    val tabs = listOf("Cardápio", "Compras", "Agenda", "Preferências", "Histórico")
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(state.snackbarMessage) {
@@ -185,7 +185,6 @@ fun MealPlannerScreen(
                         prepTimeFilter = state.prepTimeFilter,
                         onSetPrepTimeFilter = viewModel::setPrepTimeFilter,
                         onDayClick = { day -> viewModel.selectDay(day, state.schedule.find { it.dayOfWeek == day.dayOfWeek }) },
-                        dietMode = state.dietMode,
                         eatenMeals = state.eatenMeals,
                         planId = state.plan?.id ?: 0,
                         tips = state.plan?.tips,
@@ -193,6 +192,11 @@ fun MealPlannerScreen(
                         tdee = state.tdee,
                         customBudgetText = state.customBudgetText,
                         onCustomBudgetChange = viewModel::setCustomBudgetText,
+                        cuisineStyle = state.cuisineStyle,
+                        dietGoal = state.dietGoal,
+                        cuisineLabel = state.preferenceOptions.cuisineStyles.find { it.value == state.cuisineStyle }?.label.orEmpty(),
+                        dietGoalLabel = state.preferenceOptions.dietGoals.find { it.value == state.dietGoal }?.label.orEmpty(),
+                        servings = state.servings,
                     )
                     MealTab.SHOPPING -> ShoppingTab(
                         items = state.plan?.shoppingList?.items ?: emptyList(),
@@ -235,13 +239,26 @@ fun MealPlannerScreen(
                         onSaveProfile = viewModel::saveProfile,
                         dietaryPreferences = state.dietaryPreferences,
                         mealPrepMode = state.mealPrepMode,
-                        dietMode = state.dietMode,
                         onToggleDietaryPref = viewModel::toggleDietaryPreference,
                         onSetMealPrepMode = viewModel::setMealPrepMode,
-                        onSetDietMode = viewModel::setDietMode,
                         breakfastAtWork = state.breakfastAtWork,
                         onToggleBreakfastAtWork = viewModel::toggleBreakfastAtWork,
+                    )
+                    MealTab.PREFERENCES -> MealPlannerPreferencesTab(
+                        adults = state.adults,
+                        children = state.children,
+                        servings = state.servings,
+                        cuisineStyle = state.cuisineStyle,
+                        dietGoal = state.dietGoal,
+                        cuisineOptions = state.preferenceOptions.cuisineStyles,
+                        dietGoalOptions = state.preferenceOptions.dietGoals,
+                        favoriteFoods = state.favoriteFoods,
                         dislikedFoods = state.dislikedFoods,
+                        onSetHousehold = viewModel::setHousehold,
+                        onSetCuisineStyle = viewModel::setCuisineStyle,
+                        onSetDietGoal = viewModel::setDietGoal,
+                        onAddFavoriteFood = viewModel::addFavoriteFood,
+                        onRemoveFavoriteFood = viewModel::removeFavoriteFood,
                         onAddDislikedFood = viewModel::addDislikedFood,
                         onRemoveDislikedFood = viewModel::removeDislikedFood,
                     )

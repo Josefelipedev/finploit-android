@@ -9,6 +9,8 @@ import com.finploit.android.data.dto.MealDetailDto
 import com.finploit.android.data.dto.MealPlanDayDto
 import com.finploit.android.data.dto.MealPlanDto
 import com.finploit.android.data.dto.MealShoppingItemDto
+import com.finploit.android.data.dto.PreferenceOptionsDto
+import com.finploit.android.data.dto.SavePreferencesRequest
 import com.finploit.android.data.dto.ScheduleItemDto
 import com.finploit.android.data.dto.ShoppingItemImportDto
 import com.finploit.android.data.dto.UserProfileRequest
@@ -109,9 +111,18 @@ data class MealPlannerUiState(
     val customBudgetText: String = "",
     // Disliked foods/ingredients
     val dislikedFoods: List<String> = emptyList(),
+    // ── Preferences: household / cuisine / goal, stored server-side ──────────
+    val adults: Int = 1,
+    val children: Int = 0,
+    val cuisineStyle: String = "varied",
+    val dietGoal: String = "balanced",
+    val favoriteFoods: List<String> = emptyList(),
+    val servings: Double = 1.0,
+    val preferenceOptions: PreferenceOptionsDto = PreferenceOptionsDto(),
+    val isSavingPreferences: Boolean = false,
 )
 
-enum class MealTab { PLAN, SHOPPING, SCHEDULE, HISTORY }
+enum class MealTab { PLAN, SHOPPING, SCHEDULE, PREFERENCES, HISTORY }
 enum class ShoppingFilter { ALL, PENDING, PURCHASED }
 
 enum class DietMode(val label: String, val emoji: String, val description: String) {
@@ -156,7 +167,6 @@ class MealPlannerViewModel @Inject constructor(
             val eatenMealsD       = async { preferencesRepository.eatenMeals.first() }
             val ratingsD          = async { preferencesRepository.mealRatings.first() }
             val prepTimeD         = async { preferencesRepository.prepTimeFilter.first() }
-            val prepModeD         = async { preferencesRepository.mealPrepMode.first() }
             val dietModeD         = async { preferencesRepository.dietMode.first() }
             val favoritesD        = async { preferencesRepository.favoriteMeals.first() }
             val breakfastAtWorkD  = async { preferencesRepository.breakfastAtWork.first() }
@@ -164,14 +174,12 @@ class MealPlannerViewModel @Inject constructor(
             val lockedD           = async { preferencesRepository.lockedMeals.first() }
             val notesD            = async { preferencesRepository.mealNotes.first() }
             val customBudgetD     = async { preferencesRepository.customBudget.first() }
-            val dislikedFoodsD    = async { preferencesRepository.dislikedFoods.first() }
 
             val savedBudget       = savedBudgetD.await()
             val preset = BudgetPreset.entries.find { it.name == savedBudget } ?: BudgetPreset.BALANCED
             val eatenMealsJson    = eatenMealsD.await()
             val ratingsJson       = ratingsD.await()
             val prepTimeStr       = prepTimeD.await()
-            val prepMode          = prepModeD.await()
             val savedDietMode     = dietModeD.await()
             val favoriteMealsJson = favoritesD.await()
             val breakfastAtWorkJson = breakfastAtWorkD.await()
@@ -179,7 +187,6 @@ class MealPlannerViewModel @Inject constructor(
             val lockedMealsJson   = lockedD.await()
             val mealNotesJson     = notesD.await()
             val customBudgetText  = customBudgetD.await()
-            val dislikedFoodsJson = dislikedFoodsD.await()
             val eatenSet: Set<String> = try {
                 val type = object : TypeToken<List<String>>() {}.type
                 gson.fromJson<List<String>>(eatenMealsJson, type)?.toSet() ?: emptySet()
@@ -204,10 +211,6 @@ class MealPlannerViewModel @Inject constructor(
                 val type = object : TypeToken<Map<String, String>>() {}.type
                 gson.fromJson<Map<String, String>>(mealNotesJson, type) ?: emptyMap()
             } catch (_: Exception) { emptyMap() }
-            val dislikedList: List<String> = try {
-                val type = object : TypeToken<List<String>>() {}.type
-                gson.fromJson<List<String>>(dislikedFoodsJson, type) ?: emptyList()
-            } catch (_: Exception) { emptyList() }
             val prepTimeFilter = prepTimeStr.toIntOrNull()
             val dietModeEnum = DietMode.entries.find { it.name == savedDietMode.uppercase() } ?: DietMode.BALANCED
             _uiState.value = _uiState.value.copy(
@@ -215,7 +218,6 @@ class MealPlannerViewModel @Inject constructor(
                 eatenMeals = eatenSet,
                 mealRatings = ratingsMap,
                 prepTimeFilter = prepTimeFilter,
-                mealPrepMode = prepMode,
                 dietMode = dietModeEnum,
                 favoriteMeals = favoriteSet,
                 breakfastAtWork = breakfastSet,
@@ -223,10 +225,14 @@ class MealPlannerViewModel @Inject constructor(
                 lockedMeals = lockedSet,
                 mealNotes = notesMap,
                 customBudgetText = customBudgetText,
-                dislikedFoods = dislikedList,
             )
+            // mealPrepMode and dislikedFoods deliberately not restored here:
+            // loadPreferences() fetches them from the server, which is the
+            // source of truth now and shared with the web.
         }
         load()
+        // Server-side preferences win over the DataStore values restored above.
+        loadPreferences()
     }
 
     fun load() {
@@ -324,13 +330,91 @@ class MealPlannerViewModel @Inject constructor(
         if (trimmed.isBlank() || trimmed in _uiState.value.dislikedFoods) return
         val updated = _uiState.value.dislikedFoods + trimmed
         _uiState.value = _uiState.value.copy(dislikedFoods = updated)
-        viewModelScope.launch { preferencesRepository.setDislikedFoods(gson.toJson(updated)) }
+        persistPreferences(SavePreferencesRequest(dislikedFoods = updated))
     }
 
     fun removeDislikedFood(food: String) {
         val updated = _uiState.value.dislikedFoods - food
         _uiState.value = _uiState.value.copy(dislikedFoods = updated)
-        viewModelScope.launch { preferencesRepository.setDislikedFoods(gson.toJson(updated)) }
+        persistPreferences(SavePreferencesRequest(dislikedFoods = updated))
+    }
+
+    // ── Preferences: household, cuisine, goal and favourites ─────────────────
+
+    fun loadPreferences() {
+        viewModelScope.launch {
+            repository.getPreferenceOptions().onSuccess { options ->
+                _uiState.value = _uiState.value.copy(preferenceOptions = options)
+            }
+            repository.getPreferences().onSuccess { prefs ->
+                _uiState.value = _uiState.value.copy(
+                    adults = prefs.adults,
+                    children = prefs.children,
+                    cuisineStyle = prefs.cuisineStyle,
+                    dietGoal = prefs.dietGoal,
+                    favoriteFoods = prefs.favoriteFoods,
+                    dislikedFoods = prefs.dislikedFoods,
+                    mealPrepMode = prefs.mealPrepMode,
+                    servings = prefs.servings,
+                )
+            }
+        }
+    }
+
+    fun setHousehold(adults: Int, children: Int) {
+        val a = adults.coerceIn(1, 12)
+        val c = children.coerceIn(0, 12)
+        // Optimistic: mirrors the API formula so the label updates immediately.
+        _uiState.value = _uiState.value.copy(adults = a, children = c, servings = maxOf(1.0, Math.round((a + c * 0.5) * 2) / 2.0))
+        persistPreferences(SavePreferencesRequest(adults = a, children = c))
+    }
+
+    fun setCuisineStyle(style: String) {
+        _uiState.value = _uiState.value.copy(cuisineStyle = style)
+        persistPreferences(SavePreferencesRequest(cuisineStyle = style))
+    }
+
+    fun setDietGoal(goal: String) {
+        _uiState.value = _uiState.value.copy(dietGoal = goal)
+        persistPreferences(SavePreferencesRequest(dietGoal = goal))
+    }
+
+    fun addFavoriteFood(food: String) {
+        val trimmed = food.trim()
+        if (trimmed.isBlank() || _uiState.value.favoriteFoods.any { it.equals(trimmed, ignoreCase = true) }) return
+        val updated = _uiState.value.favoriteFoods + trimmed
+        _uiState.value = _uiState.value.copy(favoriteFoods = updated)
+        persistPreferences(SavePreferencesRequest(favoriteFoods = updated))
+    }
+
+    fun removeFavoriteFood(food: String) {
+        val updated = _uiState.value.favoriteFoods - food
+        _uiState.value = _uiState.value.copy(favoriteFoods = updated)
+        persistPreferences(SavePreferencesRequest(favoriteFoods = updated))
+    }
+
+    /** Saves in the background and reconciles with whatever the server returns. */
+    private fun persistPreferences(request: SavePreferencesRequest) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isSavingPreferences = true)
+            repository.savePreferences(request)
+                .onSuccess { prefs ->
+                    _uiState.value = _uiState.value.copy(
+                        adults = prefs.adults,
+                        children = prefs.children,
+                        cuisineStyle = prefs.cuisineStyle,
+                        dietGoal = prefs.dietGoal,
+                        favoriteFoods = prefs.favoriteFoods,
+                        dislikedFoods = prefs.dislikedFoods,
+                        mealPrepMode = prefs.mealPrepMode,
+                        servings = prefs.servings,
+                    )
+                }
+                .onFailure {
+                    _uiState.value = _uiState.value.copy(snackbarMessage = "Não foi possível salvar as preferências.")
+                }
+            _uiState.value = _uiState.value.copy(isSavingPreferences = false)
+        }
     }
 
     private fun extractMealNames(keys: Set<String>): List<String> {
@@ -576,7 +660,7 @@ class MealPlannerViewModel @Inject constructor(
 
     fun setMealPrepMode(enabled: Boolean) {
         _uiState.value = _uiState.value.copy(mealPrepMode = enabled)
-        viewModelScope.launch { preferencesRepository.setMealPrepMode(enabled) }
+        persistPreferences(SavePreferencesRequest(mealPrepMode = enabled))
     }
 
     fun setDietMode(mode: DietMode) {

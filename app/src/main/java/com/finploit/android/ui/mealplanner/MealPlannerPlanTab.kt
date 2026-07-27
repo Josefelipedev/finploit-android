@@ -84,7 +84,11 @@ internal fun PlanTab(
     prepTimeFilter: Int? = null,
     onSetPrepTimeFilter: (Int?) -> Unit = {},
     onDayClick: (MealPlanDayDto) -> Unit,
-    dietMode: DietMode = DietMode.BALANCED,
+    cuisineStyle: String = "varied",
+    dietGoal: String = "balanced",
+    cuisineLabel: String = "",
+    dietGoalLabel: String = "",
+    servings: Double = 1.0,
     eatenMeals: Set<String> = emptySet(),
     planId: Int = 0,
     tips: String? = null,
@@ -274,13 +278,17 @@ internal fun PlanTab(
                             .padding(horizontal = 10.dp, vertical = 5.dp),
                     ) {
                         Text(
-                            "${dietMode.emoji} ${dietMode.label}",
+                            listOfNotNull(
+                                "🍳 " + cuisineLabel.ifBlank { "Variada" },
+                                dietGoalLabel.ifBlank { null },
+                                if (servings > 1) "${formatServings(servings)} porções" else null,
+                            ).joinToString(" · "),
                             color = GreenPrimary,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold,
                         )
                     }
-                    Text("Modo activo — alterar em Agenda", color = TextDisabled, fontSize = 11.sp)
+                    Text("Alterar em Preferências", color = TextDisabled, fontSize = 11.sp)
                 }
                 Box(
                     modifier = Modifier.fillMaxWidth().height(52.dp).clip(RoundedCornerShape(14.dp))
@@ -438,13 +446,18 @@ internal fun PlanTab(
                             val proteinTargetG: Int
                             val carbsTargetG: Int
                             val fatTargetG: Int
-                            when (dietMode) {
-                                DietMode.HIGH_PROTEIN -> { proteinTargetG = (macroTargetKcal * 0.40 / 4).toInt(); carbsTargetG = (macroTargetKcal * 0.35 / 4).toInt(); fatTargetG = (macroTargetKcal * 0.25 / 9).toInt() }
-                                DietMode.LOW_CARB -> { proteinTargetG = (macroTargetKcal * 0.35 / 4).toInt(); carbsTargetG = (macroTargetKcal * 0.15 / 4).toInt(); fatTargetG = (macroTargetKcal * 0.50 / 9).toInt() }
-                                DietMode.MEDITERRANEAN -> { proteinTargetG = (macroTargetKcal * 0.20 / 4).toInt(); carbsTargetG = (macroTargetKcal * 0.50 / 4).toInt(); fatTargetG = (macroTargetKcal * 0.30 / 9).toInt() }
-                                DietMode.BUDGET_MAX, DietMode.BALANCED, DietMode.FAMILY -> { proteinTargetG = (macroTargetKcal * 0.25 / 4).toInt(); carbsTargetG = (macroTargetKcal * 0.50 / 4).toInt(); fatTargetG = (macroTargetKcal * 0.25 / 9).toInt() }
-                                else -> { proteinTargetG = (macroTargetKcal * 0.30 / 4).toInt(); carbsTargetG = (macroTargetKcal * 0.40 / 4).toInt(); fatTargetG = (macroTargetKcal * 0.30 / 9).toInt() }
+                            // Macro split by nutritional goal; the mediterranean profile
+                            // now comes from the cuisine axis instead of the old dietMode.
+                            val split = when {
+                                dietGoal == "high_protein" -> Triple(0.40, 0.35, 0.25)
+                                dietGoal == "low_carb" -> Triple(0.35, 0.15, 0.50)
+                                cuisineStyle == "mediterranica" -> Triple(0.20, 0.50, 0.30)
+                                dietGoal == "balanced" || dietGoal == "budget" -> Triple(0.25, 0.50, 0.25)
+                                else -> Triple(0.30, 0.40, 0.30)
                             }
+                            proteinTargetG = (macroTargetKcal * split.first / 4).toInt()
+                            carbsTargetG = (macroTargetKcal * split.second / 4).toInt()
+                            fatTargetG = (macroTargetKcal * split.third / 9).toInt()
                             val weeklyProteinTarget = proteinTargetG * plan.days.size
                             val weeklyCarbsTarget = carbsTargetG * plan.days.size
                             val weeklyFatTarget = fatTargetG * plan.days.size

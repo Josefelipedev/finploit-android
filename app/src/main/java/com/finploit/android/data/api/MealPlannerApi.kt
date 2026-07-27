@@ -4,7 +4,10 @@ import com.finploit.android.data.dto.AddShoppingItemRequest
 import com.finploit.android.data.dto.GeneratePlanRequest
 import com.finploit.android.data.dto.MealPlanDayDto
 import com.finploit.android.data.dto.MealPlanDto
+import com.finploit.android.data.dto.MealPreferencesDto
 import com.finploit.android.data.dto.MealShoppingItemDto
+import com.finploit.android.data.dto.PreferenceOptionsDto
+import com.finploit.android.data.dto.SavePreferencesRequest
 import com.finploit.android.data.dto.SaveScheduleRequest
 import com.finploit.android.data.dto.ScheduleItemDto
 import com.finploit.android.data.dto.SubstituteMealRequest
@@ -57,6 +60,15 @@ interface MealPlannerApi {
 
     @POST("meal-planner/day/{dayId}/substitute")
     suspend fun substituteMeal(@Path("dayId") dayId: Int, @Body request: SubstituteMealRequest): SubstituteMealResponse
+
+    @GET("meal-planner/preferences")
+    suspend fun getPreferences(): MealPreferencesDto?
+
+    @PATCH("meal-planner/preferences")
+    suspend fun savePreferences(@Body request: SavePreferencesRequest): MealPreferencesDto?
+
+    @GET("meal-planner/preferences/options")
+    suspend fun getPreferenceOptions(): PreferenceOptionsDto?
 
     @GET("meal-planner/profile")
     suspend fun getProfile(): UserProfileDto?

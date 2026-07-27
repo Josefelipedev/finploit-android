@@ -6,7 +6,10 @@ import com.finploit.android.data.dto.AddShoppingItemRequest
 import com.finploit.android.data.dto.GeneratePlanRequest
 import com.finploit.android.data.dto.MealPlanDayDto
 import com.finploit.android.data.dto.MealPlanDto
+import com.finploit.android.data.dto.MealPreferencesDto
 import com.finploit.android.data.dto.MealShoppingItemDto
+import com.finploit.android.data.dto.PreferenceOptionsDto
+import com.finploit.android.data.dto.SavePreferencesRequest
 import com.finploit.android.data.dto.SaveScheduleRequest
 import com.finploit.android.data.dto.ScheduleItemDto
 import com.finploit.android.data.dto.SubstituteMealRequest
@@ -58,6 +61,24 @@ class MealPlannerRepository @Inject constructor(
     suspend fun getAllPlans(): Result<List<MealPlanDto>> = runCatching { api.getAllPlans() }
 
     suspend fun getPlanDays(planId: Int): Result<List<MealPlanDayDto>> = runCatching { api.getPlanDays(planId) }
+
+    /** Falls back to defaults on an older backend that has no preferences endpoint. */
+    suspend fun getPreferences(): Result<MealPreferencesDto> = runCatching {
+        api.getPreferences() ?: MealPreferencesDto()
+    }.recoverCatching { e ->
+        if (e is retrofit2.HttpException && e.code() == 404) MealPreferencesDto()
+        else throw e
+    }
+
+    suspend fun savePreferences(request: SavePreferencesRequest): Result<MealPreferencesDto> =
+        runCatching { api.savePreferences(request) ?: MealPreferencesDto() }
+
+    suspend fun getPreferenceOptions(): Result<PreferenceOptionsDto> = runCatching {
+        api.getPreferenceOptions() ?: PreferenceOptionsDto()
+    }.recoverCatching { e ->
+        if (e is retrofit2.HttpException && e.code() == 404) PreferenceOptionsDto()
+        else throw e
+    }
 
     suspend fun getProfile(): Result<UserProfileDto> = runCatching {
         // Backend now always returns a profile object; null means no profile yet — treat as default.

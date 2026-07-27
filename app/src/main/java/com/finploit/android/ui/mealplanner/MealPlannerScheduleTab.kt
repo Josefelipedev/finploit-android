@@ -81,15 +81,10 @@ internal fun ScheduleTab(
     onSaveProfile: () -> Unit = {},
     dietaryPreferences: Set<String> = emptySet(),
     mealPrepMode: Boolean = false,
-    dietMode: DietMode = DietMode.BALANCED,
     onToggleDietaryPref: (String) -> Unit = {},
     onSetMealPrepMode: (Boolean) -> Unit = {},
-    onSetDietMode: (DietMode) -> Unit = {},
     breakfastAtWork: Set<Int> = emptySet(),
     onToggleBreakfastAtWork: (Int) -> Unit = {},
-    dislikedFoods: List<String> = emptyList(),
-    onAddDislikedFood: (String) -> Unit = {},
-    onRemoveDislikedFood: (String) -> Unit = {},
 ) {
     val breakfastStates = remember(schedule, breakfastAtWork) {
         (0..6).map { day -> mutableStateOf(day in breakfastAtWork) }
@@ -312,143 +307,11 @@ internal fun ScheduleTab(
                         }
                     }
                     Spacer(Modifier.height(14.dp))
-                    var dietModesExpanded by remember { mutableStateOf(false) }
-                    Row(
-                        modifier = Modifier.fillMaxWidth().clickable { dietModesExpanded = !dietModesExpanded },
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text("🍽️", fontSize = 16.sp)
-                        Spacer(Modifier.width(6.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Text("Estilo do Cardápio", color = GreenPrimary, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                                Box(
-                                    modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(GreenPrimary.copy(alpha = 0.12f)).padding(horizontal = 6.dp, vertical = 2.dp),
-                                ) {
-                                    Text("${dietMode.emoji} ${dietMode.label}", color = GreenPrimary, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
-                                }
-                            }
-                            Text(if (dietModesExpanded) "Toque para fechar" else "Toque para mudar estilo", color = TextDisabled, fontSize = 11.sp)
-                        }
-                        Text(if (dietModesExpanded) "▲" else "▼", color = TextDisabled, fontSize = 12.sp)
-                    }
-                    AnimatedVisibility(visible = dietModesExpanded) {
-                        Column(modifier = Modifier.padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            DietMode.entries.forEach { mode ->
-                                val selected = mode == dietMode
-                                Row(
-                                    modifier = Modifier.fillMaxWidth()
-                                        .clip(RoundedCornerShape(10.dp))
-                                        .background(if (selected) GreenPrimary.copy(alpha = 0.08f) else CardElevated)
-                                        .border(1.dp, if (selected) GreenPrimary.copy(alpha = 0.4f) else TextDisabled.copy(alpha = 0.15f), RoundedCornerShape(10.dp))
-                                        .clickable { onSetDietMode(mode); dietModesExpanded = false }
-                                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    Text(mode.emoji, fontSize = 20.sp)
-                                    Spacer(Modifier.width(10.dp))
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(mode.label, color = if (selected) GreenPrimary else TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                                        Text(mode.description, color = TextDisabled, fontSize = 11.sp)
-                                    }
-                                    Box(
-                                        modifier = Modifier.size(22.dp).clip(CircleShape)
-                                            .background(if (selected) GreenPrimary.copy(alpha = 0.2f) else TextDisabled.copy(alpha = 0.08f))
-                                            .border(1.5.dp, if (selected) GreenPrimary else TextDisabled.copy(alpha = 0.3f), CircleShape),
-                                        contentAlignment = Alignment.Center,
-                                    ) {
-                                        if (selected) Text("✓", color = GreenPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                    }
-                                }
-                            }
-                        }
-                    }
                 }
             }
         }
 
-        item {
-            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = CardBackground)) {
-                Column(modifier = Modifier.padding(14.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("🚫", fontSize = 18.sp)
-                        Spacer(Modifier.width(8.dp))
-                        Column {
-                            Text("Alimentos que não gosto", color = GreenPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                            Text("A IA nunca vai incluir estes alimentos nas refeições.", color = TextDisabled, fontSize = 11.sp)
-                        }
-                    }
-                    Spacer(Modifier.height(12.dp))
-                    var newFood by rememberSaveable { mutableStateOf("") }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        OutlinedTextField(
-                            value = newFood,
-                            onValueChange = { newFood = it },
-                            label = { Text("Ex: cebola, fígado, coentro...", fontSize = 11.sp) },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text, imeAction = ImeAction.Done),
-                            modifier = Modifier.weight(1f),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = ExpenseRed.copy(alpha = 0.7f),
-                                unfocusedBorderColor = TextDisabled.copy(alpha = 0.4f),
-                                focusedLabelColor = ExpenseRed.copy(alpha = 0.7f),
-                                unfocusedLabelColor = TextDisabled,
-                                focusedTextColor = TextPrimary,
-                                unfocusedTextColor = TextPrimary,
-                                cursorColor = ExpenseRed,
-                            ),
-                        )
-                        IconButton(
-                            onClick = {
-                                if (newFood.isNotBlank()) {
-                                    onAddDislikedFood(newFood.trim())
-                                    newFood = ""
-                                }
-                            },
-                            modifier = Modifier.size(44.dp)
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(GreenPrimary.copy(alpha = 0.15f)),
-                        ) {
-                            Icon(Icons.Default.Add, contentDescription = "Adicionar", tint = GreenPrimary)
-                        }
-                    }
-                    if (dislikedFoods.isNotEmpty()) {
-                        Spacer(Modifier.height(10.dp))
-                        dislikedFoods.forEach { food ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 3.dp)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(ExpenseRed.copy(alpha = 0.07f))
-                                    .border(1.dp, ExpenseRed.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
-                                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Text("🚫", fontSize = 14.sp)
-                                Spacer(Modifier.width(8.dp))
-                                Text(food, color = TextPrimary, fontSize = 13.sp, modifier = Modifier.weight(1f))
-                                IconButton(
-                                    onClick = { onRemoveDislikedFood(food) },
-                                    modifier = Modifier.size(28.dp),
-                                ) {
-                                    Icon(Icons.Default.Close, contentDescription = "Remover", tint = ExpenseRed, modifier = Modifier.size(16.dp))
-                                }
-                            }
-                        }
-                    } else {
-                        Spacer(Modifier.height(8.dp))
-                        Text("Nenhum alimento adicionado ainda.", color = TextDisabled, fontSize = 12.sp)
-                    }
-                }
-            }
-        }
-
-        item {
+item {
             Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = CardBackground)) {
                 Column(modifier = Modifier.padding(14.dp)) {
                     Text("🗓️ Onde você come cada refeição?", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp)

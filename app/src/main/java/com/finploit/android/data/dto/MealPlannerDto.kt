@@ -128,3 +128,38 @@ data class UserProfileRequest(
     val activityLevel: String? = null,
     val dietaryPreferences: List<String>? = null,
 )
+
+// ── Meal preferences (household / cuisine / goal) ────────────────────────────
+// These used to live only in the local DataStore, so they were lost on
+// reinstall and invisible to the web. The server is the source of truth now.
+
+data class MealPreferencesDto(
+    val adults: Int = 1,
+    val children: Int = 0,
+    val cuisineStyle: String = "varied",
+    val dietGoal: String = "balanced",
+    val favoriteFoods: List<String> = emptyList(),
+    val dislikedFoods: List<String> = emptyList(),
+    val mealPrepMode: Boolean = false,
+    val onboarded: Boolean = false,
+    /** Adult-equivalent portions, computed by the API from adults + children. */
+    val servings: Double = 1.0,
+)
+
+data class SavePreferencesRequest(
+    val adults: Int? = null,
+    val children: Int? = null,
+    val cuisineStyle: String? = null,
+    val dietGoal: String? = null,
+    val favoriteFoods: List<String>? = null,
+    val dislikedFoods: List<String>? = null,
+    val mealPrepMode: Boolean? = null,
+    val markOnboarded: Boolean? = null,
+)
+
+data class PreferenceOptionDto(val value: String, val label: String)
+
+data class PreferenceOptionsDto(
+    val cuisineStyles: List<PreferenceOptionDto> = emptyList(),
+    val dietGoals: List<PreferenceOptionDto> = emptyList(),
+)
