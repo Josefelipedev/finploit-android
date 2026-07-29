@@ -10,7 +10,7 @@ import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
-import retrofit2.http.PUT
+import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.Path
 import retrofit2.http.Query
@@ -39,7 +39,9 @@ interface FinanceApi {
     @POST("finance")
     suspend fun createTransaction(@Body request: CreateFinanceRequest): FinanceItemDto
 
-    @PUT("finance/{id}")
+    // A API expõe PATCH; o PUT que estava aqui devolvia 404 e o ecrã de edição
+    // falhava sempre.
+    @PATCH("finance/{id}")
     suspend fun updateTransaction(
         @Path("id") id: Int,
         @Body body: UpdateFinanceRequest,
