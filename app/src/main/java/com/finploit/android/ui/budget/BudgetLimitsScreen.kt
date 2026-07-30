@@ -30,6 +30,9 @@ fun BudgetLimitsScreen(
     onBack: () -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    // O gasto chega convertido para a moeda do utilizador; o ecrã escrevia "€"
+    // fixo, que era falso para quem usa outra moeda.
+    val currency = currencyConfigByCode(state.displayCurrency ?: LocalCurrencyConfig.current.code)
 
     Column(modifier = Modifier.fillMaxSize().background(BackgroundDark)) {
         TopAppBar(
@@ -60,8 +63,17 @@ fun BudgetLimitsScreen(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
+                if (state.unconvertedCurrencies.isNotEmpty()) {
+                    item {
+                        Text(
+                            "⚠️ ${state.unconvertedCurrencies.joinToString(", ")} sem taxa de câmbio: o gasto é aproximado.",
+                            color = TextDisabled,
+                            fontSize = 11.sp,
+                        )
+                    }
+                }
                 items(state.limits) { limit ->
-                    val spent = state.monthlySummary[limit.categoryName] ?: 0.0
+                    val spent = state.monthlySummary[limit.categoryName.trim().lowercase()] ?: 0.0
                     val progress = if (limit.monthlyLimit > 0) (spent / limit.monthlyLimit).coerceIn(0.0, 1.0) else 0.0
                     val isOverBudget = spent > limit.monthlyLimit
                     val isNearLimit = progress >= limit.alertAt / 100.0
@@ -69,6 +81,7 @@ fun BudgetLimitsScreen(
                     BudgetLimitCard(
                         limit = limit,
                         spent = spent,
+                        currency = currency,
                         progress = progress.toFloat(),
                         isOverBudget = isOverBudget,
                         isNearLimit = isNearLimit,
@@ -83,6 +96,7 @@ fun BudgetLimitsScreen(
         if (state.showAddDialog) {
             AddBudgetLimitDialog(
                 initial = state.editingLimit,
+                currency = currency,
                 onConfirm = { catId, catName, amount -> viewModel.save(catId, catName, amount) },
                 onDismiss = viewModel::hideDialog,
             )
@@ -94,6 +108,7 @@ fun BudgetLimitsScreen(
 private fun BudgetLimitCard(
     limit: BudgetLimitEntity,
     spent: Double,
+    currency: CurrencyConfig,
     progress: Float,
     isOverBudget: Boolean,
     isNearLimit: Boolean,
@@ -116,7 +131,7 @@ private fun BudgetLimitCard(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(limit.categoryName, color = TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
                     Text(
-                        "€%.2f de €%.2f".format(spent, limit.monthlyLimit),
+                        "${currency.format(spent)} de ${currency.format(limit.monthlyLimit)}",
                         color = color,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
@@ -140,9 +155,9 @@ private fun BudgetLimitCard(
             Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
                 Text("${(progress * 100).toInt()}% usado", color = TextDisabled, fontSize = 11.sp)
                 if (isOverBudget) {
-                    Text("⚠️ Excedido em €%.2f".format(spent - limit.monthlyLimit), color = ExpenseRed, fontSize = 11.sp)
+                    Text("⚠️ Excedido em ${currency.format(spent - limit.monthlyLimit)}", color = ExpenseRed, fontSize = 11.sp)
                 } else {
-                    Text("Restam €%.2f".format(limit.monthlyLimit - spent), color = TextDisabled, fontSize = 11.sp)
+                    Text("Restam ${currency.format(limit.monthlyLimit - spent)}", color = TextDisabled, fontSize = 11.sp)
                 }
             }
         }
@@ -152,6 +167,7 @@ private fun BudgetLimitCard(
 @Composable
 private fun AddBudgetLimitDialog(
     initial: BudgetLimitEntity?,
+    currency: CurrencyConfig,
     onConfirm: (Int, String, Double) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -183,7 +199,7 @@ private fun AddBudgetLimitDialog(
                 OutlinedTextField(
                     value = amount,
                     onValueChange = { amount = it },
-                    label = { Text("Limite mensal (€)", color = TextDisabled) },
+                    label = { Text("Limite mensal (${currency.symbol})", color = TextDisabled) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.fillMaxWidth(),

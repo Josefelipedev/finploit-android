@@ -2,7 +2,7 @@ package com.finploit.android.ui.report
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.finploit.android.data.dto.FinanceItemDto
+import com.finploit.android.data.dto.CategoryBreakdownDto
 import com.finploit.android.data.repository.FinanceRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
@@ -12,15 +12,28 @@ import javax.inject.Inject
 
 data class MonthlyReportState(
     val isLoading: Boolean = false,
-    val transactions: List<FinanceItemDto> = emptyList(),
+    val transactionCount: Int = 0,
     val totalIncome: Double = 0.0,
     val totalExpense: Double = 0.0,
-    val byCategory: Map<String, Double> = emptyMap(),
+    val byCategory: List<CategoryBreakdownDto> = emptyList(),
     val selectedMonth: Int = Calendar.getInstance().get(Calendar.MONTH) + 1,
     val selectedYear: Int = Calendar.getInstance().get(Calendar.YEAR),
+    /** Moeda em que os totais acima estão expressos (a do utilizador). */
+    val displayCurrency: String? = null,
+    /** Moedas somadas sem conversão — o total é aproximado enquanto isto não estiver vazio. */
+    val unconvertedCurrencies: List<String> = emptyList(),
     val error: String? = null,
 )
 
+/**
+ * Os totais e o corte por categoria vêm do `/finance/summary`, já convertidos
+ * para a moeda do utilizador.
+ *
+ * Antes este ecrã pedia a listagem e somava `amount` — que é o valor na moeda
+ * de cada lançamento. Num casal com contas em EUR e BRL isso dava a soma crua
+ * de moedas diferentes (5.345,29 onde o valor real era 919,10 €), e as
+ * categorias apareciam como "Cat 3" porque a listagem só traz o id.
+ */
 @HiltViewModel
 class MonthlyReportViewModel @Inject constructor(
     private val financeRepository: FinanceRepository,
@@ -43,17 +56,21 @@ class MonthlyReportViewModel @Inject constructor(
             val endDate = "%04d-%02d-%02d".format(year, month, lastDay)
 
             _state.update { it.copy(isLoading = true, error = null) }
-            financeRepository.getTransactions(startDate, endDate, limit = 500)
-                .onSuccess { txs ->
-                    val income = txs.filter { it.type == "income" }.sumOf { it.amount ?: 0.0 }
-                    val expense = txs.filter { it.type == "expense" }.sumOf { it.amount ?: 0.0 }
-                    val byCategory = txs
-                        .filter { it.type == "expense" }
-                        .groupBy { tx -> if (tx.categoryId != null) "Cat ${tx.categoryId}" else "Sem categoria" }
-                        .mapValues { (_, list) -> list.sumOf { it.amount ?: 0.0 } }
-                        .entries.sortedByDescending { it.value }
-                        .associate { it.toPair() }
-                    _state.update { it.copy(isLoading = false, transactions = txs, totalIncome = income, totalExpense = expense, byCategory = byCategory) }
+            financeRepository.getSummary(startDate, endDate)
+                .onSuccess { summary ->
+                    _state.update {
+                        it.copy(
+                            isLoading = false,
+                            totalIncome = summary.totalGanhos,
+                            totalExpense = summary.totalDespesas,
+                            transactionCount = summary.transactionCount,
+                            byCategory = summary.byCategory
+                                ?.filter { cat -> cat.despesas > 0 }
+                                ?: emptyList(),
+                            displayCurrency = summary.displayCurrency,
+                            unconvertedCurrencies = summary.unconvertedCurrencies ?: emptyList(),
+                        )
+                    }
                 }
                 .onFailure { e -> _state.update { it.copy(isLoading = false, error = e.message) } }
         }

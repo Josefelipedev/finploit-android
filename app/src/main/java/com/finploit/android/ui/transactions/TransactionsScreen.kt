@@ -67,6 +67,7 @@ import com.finploit.android.ui.theme.Green80
 import com.finploit.android.ui.theme.IncomeGreen
 import com.finploit.android.ui.theme.SurfaceDark
 import com.finploit.android.ui.theme.LocalCurrencyConfig
+import com.finploit.android.ui.theme.currencyConfigByCode
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -256,7 +257,9 @@ fun TransactionListItem(tx: FinanceItemDto, onClick: (() -> Unit)? = null) {
     val isIncome = tx.type == "income"
     val color = if (isIncome) IncomeGreen else ExpenseRed
     val icon = if (isIncome) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward
-    val currencyConfig = LocalCurrencyConfig.current
+    // A moeda do próprio lançamento: com a do utilizador, uma despesa em reais
+    // aparecia com "€" à frente do mesmo número.
+    val currencyConfig = currencyConfigByCode(tx.currency ?: LocalCurrencyConfig.current.code)
 
     Card(
         modifier = Modifier.fillMaxWidth().then(if (onClick != null) Modifier.clickable { onClick() } else Modifier),
@@ -278,7 +281,7 @@ fun TransactionListItem(tx: FinanceItemDto, onClick: (() -> Unit)? = null) {
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 14.sp,
                 )
-                Text(text = tx.createdAt.take(10), color = Color.Gray, fontSize = 12.sp)
+                Text(text = tx.movementDate, color = Color.Gray, fontSize = 12.sp)
             }
             Text(
                 text = currencyConfig.format(tx.amount ?: 0.0),

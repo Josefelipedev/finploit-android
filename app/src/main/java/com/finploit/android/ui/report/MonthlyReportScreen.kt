@@ -31,6 +31,9 @@ fun MonthlyReportScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    // Os totais chegam já convertidos para a moeda do utilizador; o símbolo tem
+    // de ser o dela — este ecrã escrevia "€" fixo mesmo para quem usa R$.
+    val currency = currencyConfigByCode(state.displayCurrency ?: LocalCurrencyConfig.current.code)
 
     Column(modifier = Modifier.fillMaxSize().background(BackgroundDark)) {
         TopAppBar(
@@ -42,7 +45,7 @@ fun MonthlyReportScreen(
             },
             actions = {
                 IconButton(onClick = {
-                    val text = buildReportText(state)
+                    val text = buildReportText(state, currency)
                     val intent = Intent(Intent.ACTION_SEND).apply {
                         type = "text/plain"
                         putExtra(Intent.EXTRA_TEXT, text)
@@ -100,20 +103,28 @@ fun MonthlyReportScreen(
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                     Text("Receitas", color = TextDisabled, fontSize = 12.sp)
-                                    Text("€%.2f".format(state.totalIncome), color = IncomeGreen, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                                    Text(currency.format(state.totalIncome), color = IncomeGreen, fontWeight = FontWeight.Bold, fontSize = 20.sp)
                                 }
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                     Text("Despesas", color = TextDisabled, fontSize = 12.sp)
-                                    Text("€%.2f".format(state.totalExpense), color = ExpenseRed, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                                    Text(currency.format(state.totalExpense), color = ExpenseRed, fontWeight = FontWeight.Bold, fontSize = 20.sp)
                                 }
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                     Text("Balanço", color = TextDisabled, fontSize = 12.sp)
                                     val balance = state.totalIncome - state.totalExpense
-                                    Text("€%.2f".format(balance), color = if (balance >= 0) IncomeGreen else ExpenseRed, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                                    Text(currency.format(balance), color = if (balance >= 0) IncomeGreen else ExpenseRed, fontWeight = FontWeight.Bold, fontSize = 20.sp)
                                 }
                             }
                             Spacer(Modifier.height(8.dp))
-                            Text("${state.transactions.size} transações", color = TextDisabled, fontSize = 12.sp)
+                            Text("${state.transactionCount} transações", color = TextDisabled, fontSize = 12.sp)
+                            if (state.unconvertedCurrencies.isNotEmpty()) {
+                                Spacer(Modifier.height(6.dp))
+                                Text(
+                                    "⚠️ ${state.unconvertedCurrencies.joinToString(", ")} sem taxa de câmbio: somadas pelo valor original.",
+                                    color = TextDisabled,
+                                    fontSize = 11.sp,
+                                )
+                            }
                         }
                     }
                 }
@@ -123,7 +134,8 @@ fun MonthlyReportScreen(
                     item {
                         Text("Despesas por categoria", color = TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
                     }
-                    items(state.byCategory.entries.toList()) { (cat, amount) ->
+                    items(state.byCategory) { cat ->
+                        val amount = cat.despesas
                         val pct = if (state.totalExpense > 0) (amount / state.totalExpense * 100).toInt() else 0
                         Card(
                             modifier = Modifier.fillMaxWidth(),
@@ -135,10 +147,10 @@ fun MonthlyReportScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
-                                    Text(cat, color = TextPrimary, fontWeight = FontWeight.Medium, fontSize = 14.sp)
+                                    Text(cat.categoryName, color = TextPrimary, fontWeight = FontWeight.Medium, fontSize = 14.sp)
                                     Text("$pct% das despesas", color = TextDisabled, fontSize = 11.sp)
                                 }
-                                Text("€%.2f".format(amount), color = ExpenseRed, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                Text(currency.format(amount), color = ExpenseRed, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                             }
                         }
                     }
@@ -150,19 +162,19 @@ fun MonthlyReportScreen(
     }
 }
 
-private fun buildReportText(state: MonthlyReportState): String = buildString {
+private fun buildReportText(state: MonthlyReportState, currency: CurrencyConfig): String = buildString {
     val monthName = MONTH_NAMES[state.selectedMonth - 1]
     appendLine("📊 Relatório FinPloit — $monthName ${state.selectedYear}")
     appendLine("=".repeat(40))
-    appendLine("✅ Receitas: €%.2f".format(state.totalIncome))
-    appendLine("❌ Despesas: €%.2f".format(state.totalExpense))
+    appendLine("✅ Receitas: ${currency.format(state.totalIncome)}")
+    appendLine("❌ Despesas: ${currency.format(state.totalExpense)}")
     val balance = state.totalIncome - state.totalExpense
-    appendLine("💰 Balanço: €%.2f".format(balance))
+    appendLine("💰 Balanço: ${currency.format(balance)}")
     appendLine()
     appendLine("📁 Por categoria:")
-    state.byCategory.forEach { (cat, amt) ->
-        appendLine("  • $cat: €%.2f".format(amt))
+    state.byCategory.forEach { cat ->
+        appendLine("  • ${cat.categoryName}: ${currency.format(cat.despesas)}")
     }
     appendLine()
-    appendLine("${state.transactions.size} transações no período")
+    appendLine("${state.transactionCount} transações no período")
 }

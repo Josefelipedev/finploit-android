@@ -4,6 +4,7 @@ import com.finploit.android.data.api.FinanceApi
 import com.finploit.android.data.dto.CreateFinanceRequest
 import com.finploit.android.data.dto.DashboardResponse
 import com.finploit.android.data.dto.FinanceItemDto
+import com.finploit.android.data.dto.FinanceListResponse
 import com.finploit.android.data.dto.FinanceSummaryResponse
 import com.finploit.android.data.dto.UpdateFinanceRequest
 import com.finploit.android.data.local.dao.TransactionCacheDao
@@ -27,13 +28,25 @@ class FinanceRepository @Inject constructor(
         endDate: String? = null,
         page: Int = 1,
         limit: Int = 20,
-    ): Result<List<FinanceItemDto>> = runCatching {
-        val list = api.getTransactions(startDate, endDate, page, limit).data
+    ): Result<List<FinanceItemDto>> = getTransactionsPage(startDate, endDate, page, limit).map { it.data }
+
+    /**
+     * Como [getTransactions], mas devolve também o `meta` — que traz a moeda de
+     * exibição e as moedas que a API não conseguiu converter. Quem soma
+     * lançamentos precisa disso para avisar que o total é aproximado.
+     */
+    suspend fun getTransactionsPage(
+        startDate: String? = null,
+        endDate: String? = null,
+        page: Int = 1,
+        limit: Int = 20,
+    ): Result<FinanceListResponse> = runCatching {
+        val response = api.getTransactions(startDate, endDate, page, limit)
         if (page == 1) {
-            cacheDao.insertAll(list.map { it.toCacheEntity() })
+            cacheDao.insertAll(response.data.map { it.toCacheEntity() })
             cacheDao.clearOld(System.currentTimeMillis() - 7 * 24 * 60 * 60 * 1000L)
         }
-        list
+        response
     }
 
     val cachedTransactions: Flow<List<FinanceItemDto>> =

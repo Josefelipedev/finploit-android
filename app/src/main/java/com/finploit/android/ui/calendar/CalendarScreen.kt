@@ -152,7 +152,15 @@ fun CalendarScreen(
                         )
                         Spacer(Modifier.width(10.dp))
                         Text(tx.description ?: tx.type ?: "", color = TextPrimary, modifier = Modifier.weight(1f), fontSize = 14.sp)
-                        Text("€%.2f".format(tx.amount ?: 0.0), color = color, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        // Cada linha na moeda em que foi lançada — o "€" fixo
+                        // dava um lançamento em reais como se fosse em euros.
+                        Text(
+                            currencyConfigByCode(tx.currency ?: LocalCurrencyConfig.current.code)
+                                .format(tx.amount ?: 0.0),
+                            color = color,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                        )
                     }
                 }
             }

@@ -16,7 +16,9 @@ data class CalendarUiState(
     val selectedMonth: Int = Calendar.getInstance().get(Calendar.MONTH) + 1,
     val selectedDay: Int? = null,
     val transactionsByDay: Map<Int, List<FinanceItemDto>> = emptyMap(),
+    /** Saldo do dia na moeda do utilizador (soma dos valores já convertidos). */
     val dailyBalances: Map<Int, Double> = emptyMap(),
+    val displayCurrency: String? = null,
     val error: String? = null,
 )
 
@@ -38,21 +40,32 @@ class CalendarViewModel @Inject constructor(
                 set(Calendar.YEAR, year); set(Calendar.MONTH, month - 1)
             }.getActualMaximum(Calendar.DAY_OF_MONTH)
             _state.update { it.copy(isLoading = true) }
-            financeRepository.getTransactions(
+            financeRepository.getTransactionsPage(
                 startDate = "%04d-%02d-01".format(year, month),
                 endDate = "%04d-%02d-%02d".format(year, month, lastDay),
                 limit = 500,
-            ).onSuccess { txs ->
-                val byDay = txs.groupBy { tx ->
-                    tx.createdAt.take(10).split("-").lastOrNull()?.toIntOrNull() ?: 1
+            ).onSuccess { page ->
+                // Pelo dia do movimento (`referenceDate`), que é por onde a API
+                // filtra o período — agrupar por `createdAt` punha no dia da
+                // digitação tudo o que foi lançado com atraso.
+                val byDay = page.data.groupBy { tx ->
+                    tx.movementDate.split("-").lastOrNull()?.toIntOrNull() ?: 1
                 }
+                // `amountForTotals` é o valor já convertido pelo servidor: somar
+                // `amount` misturava moedas (100 BRL + 100 EUR davam 200).
                 val dailyBalances = byDay.mapValues { (_, list) ->
                     list.sumOf { tx ->
-                        val amount = tx.amount ?: 0.0
-                        if (tx.type == "income") amount else -amount
+                        if (tx.type == "income") tx.amountForTotals else -tx.amountForTotals
                     }
                 }
-                _state.update { it.copy(isLoading = false, transactionsByDay = byDay, dailyBalances = dailyBalances) }
+                _state.update {
+                    it.copy(
+                        isLoading = false,
+                        transactionsByDay = byDay,
+                        dailyBalances = dailyBalances,
+                        displayCurrency = page.meta.displayCurrency,
+                    )
+                }
             }.onFailure { e ->
                 _state.update { it.copy(isLoading = false, error = e.message) }
             }

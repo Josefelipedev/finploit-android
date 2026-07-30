@@ -44,6 +44,7 @@ import com.finploit.android.ui.theme.Green80
 import com.finploit.android.ui.theme.IncomeGreen
 import com.finploit.android.ui.theme.SurfaceDark
 import com.finploit.android.ui.theme.LocalCurrencyConfig
+import com.finploit.android.ui.theme.currencyConfigByCode
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -107,20 +108,27 @@ fun NotificationsScreen(
 }
 
 @Composable
-private fun UpcomingBillCard(bill: UpcomingBill) {
-    val currency = LocalCurrencyConfig.current
-    val isIncome = bill.transaction.type == "income"
+private fun UpcomingBillCard(item: UpcomingBill) {
+    val bill = item.bill
+    // Cada conta na moeda em que foi lançada — a do utilizador dava um
+    // vencimento de 40 € como "R$ 40,00".
+    val currency = currencyConfigByCode(bill.currency.ifBlank { LocalCurrencyConfig.current.code })
+    val isIncome = bill.isIncome
     val typeColor = if (isIncome) IncomeGreen else ExpenseRed
 
-    val urgencyColor = when (bill.daysUntilDue) {
-        0 -> ExpenseRed
-        1 -> Color(0xFFFFAB40)
+    val days = item.daysUntilDue
+    val urgencyColor = when {
+        days < 0 -> ExpenseRed
+        days == 0 -> ExpenseRed
+        days == 1 -> Color(0xFFFFAB40)
         else -> Color.Gray
     }
-    val urgencyLabel = when (bill.daysUntilDue) {
-        0 -> "Vence HOJE"
-        1 -> "Vence amanhã"
-        else -> "Vence em ${bill.daysUntilDue} dias"
+    val urgencyLabel = when {
+        days < -1 -> "Venceu há ${-days} dias"
+        days == -1 -> "Venceu ontem"
+        days == 0 -> "Vence HOJE"
+        days == 1 -> "Vence amanhã"
+        else -> "Vence em $days dias"
     }
 
     Card(
@@ -134,7 +142,7 @@ private fun UpcomingBillCard(bill: UpcomingBill) {
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = bill.transaction.description ?: bill.transaction.type,
+                    text = bill.description.ifBlank { if (isIncome) "Receita" else "Despesa" },
                     color = Color.White,
                     fontWeight = FontWeight.Bold,
                     fontSize = 15.sp,
@@ -145,7 +153,7 @@ private fun UpcomingBillCard(bill: UpcomingBill) {
             Spacer(Modifier.width(12.dp))
             Column(horizontalAlignment = Alignment.End) {
                 Text(
-                    currency.format(bill.transaction.amount),
+                    currency.format(bill.amount),
                     color = typeColor,
                     fontWeight = FontWeight.ExtraBold,
                     fontSize = 16.sp,

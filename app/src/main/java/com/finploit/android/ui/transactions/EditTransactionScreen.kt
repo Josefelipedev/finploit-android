@@ -74,10 +74,11 @@ fun EditTransactionScreen(
     var type by remember { mutableStateOf(tx.type ?: "expense") }
     var amount by remember { mutableStateOf(tx.amount?.toString() ?: "") }
     var description by remember { mutableStateOf(tx.description ?: "") }
+    // A data do movimento, não a da criação: prefixar com `createdAt` fazia
+    // qualquer edição mudar em silêncio o dia do lançamento para o dia em que
+    // tinha sido digitado.
     var referenceDate by remember {
-        mutableStateOf(
-            tx.createdAt.takeIf { it.length >= 10 }?.take(10) ?: LocalDate.now().toString()
-        )
+        mutableStateOf(tx.movementDate.takeIf { it.length == 10 } ?: LocalDate.now().toString())
     }
     var showDatePicker by remember { mutableStateOf(false) }
 

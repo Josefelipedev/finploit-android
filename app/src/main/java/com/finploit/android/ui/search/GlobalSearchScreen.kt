@@ -82,8 +82,9 @@ fun GlobalSearchScreen(
                         SearchResultCard(
                             icon = if (isIncome) "↑" else "↓",
                             title = tx.description ?: tx.type ?: "Transação",
-                            subtitle = tx.createdAt.take(10),
-                            value = "€%.2f".format(tx.amount ?: 0.0),
+                            subtitle = tx.movementDate,
+                            value = currencyConfigByCode(tx.currency ?: LocalCurrencyConfig.current.code)
+                                .format(tx.amount ?: 0.0),
                             valueColor = color,
                         )
                     }

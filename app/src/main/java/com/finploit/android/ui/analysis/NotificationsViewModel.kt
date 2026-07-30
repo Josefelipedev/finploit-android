@@ -2,18 +2,21 @@ package com.finploit.android.ui.analysis
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.finploit.android.data.dto.RecurringTransactionDto
-import com.finploit.android.data.repository.RecurringRepository
+import com.finploit.android.data.dto.BillItemDto
+import com.finploit.android.data.repository.BillsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import java.util.Calendar
+import java.time.LocalDate
+import java.time.YearMonth
+import java.time.temporal.ChronoUnit
 import javax.inject.Inject
 
 data class UpcomingBill(
-    val transaction: RecurringTransactionDto,
+    val bill: BillItemDto,
+    /** Dias até vencer; negativo quando já venceu. */
     val daysUntilDue: Int,
 )
 
@@ -23,9 +26,20 @@ data class NotificationsUiState(
     val error: String? = null,
 )
 
+/** Janela de "a vencer", igual à da web. */
+private const val HORIZON_DAYS = 30L
+
+/**
+ * As contas vêm de `GET /bills`, que é quem gera as ocorrências do mês, marca o
+ * que está em atraso e diz a moeda de cada uma.
+ *
+ * Antes isto recalculava o vencimento a partir das recorrentes: só via as
+ * mensais com `dueDay`, ignorava contas avulsas, não sabia o que já estava pago
+ * e nunca mostrava atrasos.
+ */
 @HiltViewModel
 class NotificationsViewModel @Inject constructor(
-    private val recurringRepository: RecurringRepository,
+    private val billsRepository: BillsRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(NotificationsUiState(isLoading = true))
@@ -36,26 +50,31 @@ class NotificationsViewModel @Inject constructor(
     fun load() {
         viewModelScope.launch {
             _uiState.value = NotificationsUiState(isLoading = true)
-            val today = Calendar.getInstance().get(Calendar.DAY_OF_MONTH)
 
-            recurringRepository.getAll()
-                .onSuccess { list ->
-                    val upcoming = list
-                        .filter { it.dueDay != null && it.dueDay > 0 }
-                        .mapNotNull { tx ->
-                            val due = tx.dueDay!!
-                            val days = when {
-                                due == today -> 0
-                                due == today + 1 -> 1
-                                due > today -> due - today
-                                else -> null
-                            }
-                            days?.let { UpcomingBill(tx, it) }
-                        }
-                        .sortedBy { it.daysUntilDue }
-                    _uiState.value = NotificationsUiState(upcomingBills = upcoming)
+            val thisMonth = YearMonth.now()
+            // Dois meses: uma janela de 30 dias a meio do mês atravessa o seguinte.
+            val current = billsRepository.getBills(thisMonth.toString())
+            val next = billsRepository.getBills(thisMonth.plusMonths(1).toString())
+
+            val failure = current.exceptionOrNull() ?: next.exceptionOrNull()
+            if (current.isFailure && next.isFailure) {
+                _uiState.value = NotificationsUiState(error = failure?.message)
+                return@launch
+            }
+
+            val today = LocalDate.now()
+            val items = (current.getOrNull()?.items.orEmpty() + next.getOrNull()?.items.orEmpty())
+                .filter { !it.isPaid }
+                .distinctBy { it.id } // o mês seguinte repete as atrasadas
+                .mapNotNull { bill ->
+                    val due = runCatching { LocalDate.parse(bill.dueDate.take(10)) }.getOrNull()
+                        ?: return@mapNotNull null
+                    UpcomingBill(bill, ChronoUnit.DAYS.between(today, due).toInt())
                 }
-                .onFailure { _uiState.value = NotificationsUiState(error = it.message) }
+                .filter { it.daysUntilDue <= HORIZON_DAYS }
+                .sortedBy { it.daysUntilDue }
+
+            _uiState.value = NotificationsUiState(upcomingBills = items)
         }
     }
 }

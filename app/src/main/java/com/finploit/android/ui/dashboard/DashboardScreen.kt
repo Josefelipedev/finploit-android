@@ -69,6 +69,7 @@ import com.finploit.android.ui.theme.SurfaceDark
 import com.finploit.android.ui.theme.CurrencyConfig
 import com.finploit.android.ui.theme.TextDisabled
 import com.finploit.android.ui.theme.LocalCurrencyConfig
+import com.finploit.android.ui.theme.currencyConfigByCode
 import com.finploit.android.ui.theme.TextPrimary
 import com.finploit.android.ui.theme.TextSecondary
 
@@ -341,7 +342,9 @@ private fun TransactionItem(tx: TransactionDto) {
     val isIncome = tx.tag == "income"
     val color = if (isIncome) IncomeGreen else ExpenseRed
     val icon = if (isIncome) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward
-    val currencyConfig = LocalCurrencyConfig.current
+    // Os totais em cima vêm convertidos; cada linha continua no valor original,
+    // por isso o símbolo é o da moeda do lançamento.
+    val currencyConfig = currencyConfigByCode(tx.currency ?: LocalCurrencyConfig.current.code)
 
     Card(
         modifier = Modifier.fillMaxWidth(),

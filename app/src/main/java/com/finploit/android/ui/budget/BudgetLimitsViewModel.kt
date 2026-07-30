@@ -12,12 +12,24 @@ import javax.inject.Inject
 
 data class BudgetUiState(
     val limits: List<BudgetLimitEntity> = emptyList(),
-    val monthlySummary: Map<String, Double> = emptyMap(), // categoryName -> spent
+    /** categoria (em minúsculas) -> gasto do mês, na moeda do utilizador */
+    val monthlySummary: Map<String, Double> = emptyMap(),
+    val displayCurrency: String? = null,
+    val unconvertedCurrencies: List<String> = emptyList(),
     val showAddDialog: Boolean = false,
     val editingLimit: BudgetLimitEntity? = null,
     val isSaving: Boolean = false,
 )
 
+/**
+ * O gasto por categoria vem do `/finance/summary`, já convertido para a moeda
+ * do utilizador — somar a listagem no cliente misturava moedas.
+ *
+ * A chave do mapa é o nome da categoria em minúsculas: os limites guardados
+ * localmente não têm o id real da categoria (são criados com `hashCode()` do
+ * nome), e a versão anterior indexava por `"Cat $id"` enquanto o ecrã procurava
+ * pelo nome — nunca havia correspondência e cada limite aparecia com 0 gasto.
+ */
 @HiltViewModel
 class BudgetLimitsViewModel @Inject constructor(
     private val budgetRepository: BudgetRepository,
@@ -44,14 +56,17 @@ class BudgetLimitsViewModel @Inject constructor(
             val startDate = "%04d-%02d-01".format(year, month)
             val lastDay = now.getActualMaximum(java.util.Calendar.DAY_OF_MONTH)
             val endDate = "%04d-%02d-%02d".format(year, month, lastDay)
-            financeRepository.getTransactions(startDate, endDate, limit = 200)
-                .onSuccess { txs ->
-                    // Group by categoryId as string key (budget names are user-defined)
-                    val summary = txs
-                        .filter { it.type == "expense" }
-                        .groupBy { "Cat ${it.categoryId ?: 0}" }
-                        .mapValues { (_, list) -> list.sumOf { it.amount ?: 0.0 } }
-                    _state.update { it.copy(monthlySummary = summary) }
+            financeRepository.getSummary(startDate, endDate)
+                .onSuccess { summary ->
+                    val spentByCategory = summary.byCategory.orEmpty()
+                        .associate { it.categoryName.trim().lowercase() to it.despesas }
+                    _state.update {
+                        it.copy(
+                            monthlySummary = spentByCategory,
+                            displayCurrency = summary.displayCurrency,
+                            unconvertedCurrencies = summary.unconvertedCurrencies ?: emptyList(),
+                        )
+                    }
                 }
         }
     }
