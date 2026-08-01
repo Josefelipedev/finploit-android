@@ -29,6 +29,10 @@ data class ShoppingUiState(
     val isLoadingPrices: Boolean = false,
     val monthlyPlan: MonthlyPlanResponse? = null,
     val isGeneratingMonthly: Boolean = false,
+    /** Fecho da compra (lista -> despesa) em curso. */
+    val isClosingPurchase: Boolean = false,
+    /** Mensagem de resultado do fecho/reabertura, para o snackbar. */
+    val purchaseMessage: String? = null,
 )
 
 @HiltViewModel
@@ -118,6 +122,57 @@ class ShoppingViewModel @Inject constructor(
 
     fun clearSaveState() {
         _uiState.value = _uiState.value.copy(saveSuccess = false, saveError = null)
+    }
+
+    /**
+     * Fecha a compra: os itens marcados como comprados viram uma despesa.
+     * O valor é somado no servidor — aqui só se escolhe categoria e data.
+     */
+    fun closePurchase(listId: Int, categoryId: Int? = null, referenceDate: String? = null) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isClosingPurchase = true, purchaseMessage = null)
+            repository.closePurchase(listId, categoryId, referenceDate)
+                .onSuccess {
+                    _uiState.value = _uiState.value.copy(
+                        isClosingPurchase = false,
+                        selectedList = it,
+                        purchaseMessage = "Compra fechada. A despesa já está nas suas transações.",
+                    )
+                    loadLists()
+                }
+                .onFailure {
+                    _uiState.value = _uiState.value.copy(
+                        isClosingPurchase = false,
+                        purchaseMessage = "Não foi possível fechar a compra.",
+                    )
+                }
+        }
+    }
+
+    /** Reabre a compra e apaga a despesa criada. */
+    fun reopenPurchase(listId: Int) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isClosingPurchase = true, purchaseMessage = null)
+            repository.reopenPurchase(listId)
+                .onSuccess {
+                    _uiState.value = _uiState.value.copy(
+                        isClosingPurchase = false,
+                        selectedList = it,
+                        purchaseMessage = "Compra reaberta e despesa apagada.",
+                    )
+                    loadLists()
+                }
+                .onFailure {
+                    _uiState.value = _uiState.value.copy(
+                        isClosingPurchase = false,
+                        purchaseMessage = "Não foi possível reabrir a compra.",
+                    )
+                }
+        }
+    }
+
+    fun clearPurchaseMessage() {
+        _uiState.value = _uiState.value.copy(purchaseMessage = null)
     }
 
     fun enrichPrices(listId: Int) {

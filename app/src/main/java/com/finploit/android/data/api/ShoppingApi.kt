@@ -1,5 +1,6 @@
 package com.finploit.android.data.api
 
+import com.finploit.android.data.dto.ClosePurchaseRequest
 import com.finploit.android.data.dto.CreateListWithItemsRequest
 import com.finploit.android.data.dto.CreateOrUpdateShoppingItemRequest
 import com.finploit.android.data.dto.EnrichPricesResponse
@@ -35,6 +36,17 @@ interface ShoppingApi {
 
     @DELETE("shopping/list/{id}")
     suspend fun deleteList(@Path("id") id: Int)
+
+    /** Fecha a compra: os itens comprados viram uma despesa. */
+    @POST("shopping/list/{id}/close")
+    suspend fun closePurchase(
+        @Path("id") id: Int,
+        @Body body: ClosePurchaseRequest,
+    ): ShoppingListDto
+
+    /** Reabre a compra e apaga a despesa criada. */
+    @POST("shopping/list/{id}/reopen")
+    suspend fun reopenPurchase(@Path("id") id: Int): ShoppingListDto
 
     @POST("shopping/shopping-item")
     suspend fun createOrUpdateItem(@Body request: CreateOrUpdateShoppingItemRequest): ShoppingItemDto

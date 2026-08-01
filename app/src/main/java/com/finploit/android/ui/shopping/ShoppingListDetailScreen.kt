@@ -81,6 +81,8 @@ fun ShoppingListDetailScreen(
     val list = uiState.selectedList ?: return
 
     var showAddDialog by remember { mutableStateOf(false) }
+    var showCloseDialog by remember { mutableStateOf(false) }
+    var showReopenDialog by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
 
     if (showAddDialog) {
@@ -89,6 +91,45 @@ fun ShoppingListDetailScreen(
             onDismiss = { showAddDialog = false },
             onConfirm = { name, qty, unit, price ->
                 viewModel.addOrUpdateItem(list.id, name, qty, unit, price)
+            },
+        )
+    }
+
+    if (showCloseDialog) {
+        ClosePurchaseDialog(
+            purchasedCount = list.items.count { it.purchased },
+            totalCount = list.items.size,
+            total = list.purchasedTotal,
+            isSaving = uiState.isClosingPurchase,
+            onDismiss = { showCloseDialog = false },
+            onConfirm = {
+                viewModel.closePurchase(list.id)
+                showCloseDialog = false
+            },
+        )
+    }
+
+    if (showReopenDialog) {
+        AlertDialog(
+            onDismissRequest = { showReopenDialog = false },
+            containerColor = CardBackground,
+            title = { Text("Reabrir compra", color = Color.White) },
+            text = {
+                Text(
+                    "A despesa criada por esta compra vai ser apagada e a lista volta a ficar editável.",
+                    color = Color.Gray,
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.reopenPurchase(list.id)
+                    showReopenDialog = false
+                }) { Text("Reabrir", color = ExpenseRed) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showReopenDialog = false }) {
+                    Text("Cancelar", color = Color.Gray)
+                }
             },
         )
     }
@@ -114,6 +155,13 @@ fun ShoppingListDetailScreen(
         }
     }
 
+    LaunchedEffect(uiState.purchaseMessage) {
+        uiState.purchaseMessage?.let { msg ->
+            snackbarHostState.showSnackbar(msg)
+            viewModel.clearPurchaseMessage()
+        }
+    }
+
     androidx.compose.material3.Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         containerColor = SurfaceDark,
@@ -131,8 +179,11 @@ fun ShoppingListDetailScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { showAddDialog = true }) {
-                        Icon(Icons.Default.Add, contentDescription = "Adicionar item", tint = Green80)
+                    // Compra fechada é histórico: não se acrescentam itens.
+                    if (!list.isClosed) {
+                        IconButton(onClick = { showAddDialog = true }) {
+                            Icon(Icons.Default.Add, contentDescription = "Adicionar item", tint = Green80)
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -160,9 +211,61 @@ fun ShoppingListDetailScreen(
                 }
             }
 
+            if (list.isClosed) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    color = GreenPrimary.copy(alpha = 0.15f),
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "Compra fechada",
+                                color = GreenPrimary,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Text(
+                                "${LocalCurrencyConfig.current.format(list.purchasedTotal)} lançados como despesa",
+                                color = Color.Gray,
+                                fontSize = 12.sp,
+                            )
+                        }
+                        TextButton(onClick = { showReopenDialog = true }) {
+                            Text("Reabrir", color = ExpenseRed, fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
+
             // Botões de ação
             val pendingItems = list.items.filter { !it.purchased }
-            if (pendingItems.isNotEmpty()) {
+            if (!list.isClosed && list.items.any { it.purchased }) {
+                Button(
+                    onClick = { showCloseDialog = true },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 6.dp)
+                        .height(42.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = GreenPrimary),
+                ) {
+                    Text("🧾", fontSize = 13.sp)
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        "Fechar compra · ${LocalCurrencyConfig.current.format(list.purchasedTotal)}",
+                        color = Color.Black,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+            }
+            if (!list.isClosed && pendingItems.isNotEmpty()) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -223,6 +326,7 @@ fun ShoppingListDetailScreen(
                     items(list.items, key = { it.id }) { item ->
                         ShoppingItemRow(
                             item = item,
+                            readOnly = list.isClosed,
                             onToggle = { viewModel.toggleItem(item.id, !item.purchased, list.id) },
                             onDelete = { viewModel.deleteItem(item.id, list.id) },
                             onShowPrices = { viewModel.loadStorePrices(item.name) },
@@ -235,9 +339,64 @@ fun ShoppingListDetailScreen(
     }
 }
 
+/**
+ * Confirmação do fecho da compra. Mostra o valor exato que vai ser lançado —
+ * só os itens comprados, pela mesma regra do servidor — para que ninguém
+ * descubra o montante só depois de a despesa existir.
+ */
+@Composable
+private fun ClosePurchaseDialog(
+    purchasedCount: Int,
+    totalCount: Int,
+    total: Double,
+    isSaving: Boolean,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = CardBackground,
+        title = { Text("Fechar compra", color = Color.White) },
+        text = {
+            Column {
+                Text(
+                    LocalCurrencyConfig.current.format(total),
+                    color = Color.White,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "$purchasedCount de $totalCount ${if (totalCount == 1) "item" else "itens"} — " +
+                        "os não marcados ficam de fora.",
+                    color = Color.Gray,
+                    fontSize = 13.sp,
+                )
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    "A despesa vai para a categoria Supermercado e para o dia de hoje. " +
+                        "A lista fica bloqueada; reabrir apaga a despesa.",
+                    color = TextDisabled,
+                    fontSize = 12.sp,
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm, enabled = !isSaving) {
+                Text(if (isSaving) "A fechar..." else "Fechar compra", color = GreenPrimary)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancelar", color = Color.Gray) }
+        },
+    )
+}
+
 @Composable
 private fun ShoppingItemRow(
     item: ShoppingItemDto,
+    /** Compra fechada: os itens ficam como estão. */
+    readOnly: Boolean = false,
     onToggle: () -> Unit,
     onDelete: () -> Unit,
     onShowPrices: () -> Unit = {},
@@ -265,6 +424,7 @@ private fun ShoppingItemRow(
             Checkbox(
                 checked = item.purchased,
                 onCheckedChange = { onToggle() },
+                enabled = !readOnly,
                 colors = CheckboxDefaults.colors(
                     checkedColor = Green80,
                     uncheckedColor = Color.Gray,
@@ -313,7 +473,7 @@ private fun ShoppingItemRow(
                     }
                 }
             }
-            IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
+            IconButton(onClick = onDelete, enabled = !readOnly, modifier = Modifier.size(32.dp)) {
                 Icon(Icons.Default.Delete, contentDescription = "Remover", tint = ExpenseRed.copy(alpha = 0.6f), modifier = Modifier.size(18.dp))
             }
         }

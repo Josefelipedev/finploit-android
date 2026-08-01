@@ -1,6 +1,7 @@
 package com.finploit.android.data.repository
 
 import com.finploit.android.data.api.ShoppingApi
+import com.finploit.android.data.dto.ClosePurchaseRequest
 import com.finploit.android.data.dto.CreateListWithItemsRequest
 import com.finploit.android.data.dto.CreateOrUpdateShoppingItemRequest
 import com.finploit.android.data.dto.EnrichPricesResponse
@@ -28,6 +29,16 @@ class ShoppingRepository @Inject constructor(private val api: ShoppingApi) {
         runCatching { api.updateList(id, mapOf("name" to name)) }
 
     suspend fun deleteList(id: Int): Result<Unit> = runCatching { api.deleteList(id) }
+
+    suspend fun closePurchase(
+        id: Int,
+        categoryId: Int? = null,
+        referenceDate: String? = null,
+    ): Result<ShoppingListDto> =
+        runCatching { api.closePurchase(id, ClosePurchaseRequest(categoryId, referenceDate)) }
+
+    suspend fun reopenPurchase(id: Int): Result<ShoppingListDto> =
+        runCatching { api.reopenPurchase(id) }
 
     suspend fun createOrUpdateItem(request: CreateOrUpdateShoppingItemRequest): Result<ShoppingItemDto> =
         runCatching { api.createOrUpdateItem(request) }

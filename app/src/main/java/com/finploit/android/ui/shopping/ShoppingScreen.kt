@@ -290,6 +290,16 @@ private fun ShoppingListCard(
             Column(modifier = Modifier.weight(1f)) {
                 Text(list.name, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 Spacer(Modifier.height(4.dp))
+                // Compra fechada já é despesa: distingue-se sem ter de abrir.
+                if (list.isClosed) {
+                    Text(
+                        text = "✓ Fechada · ${LocalCurrencyConfig.current.format(list.purchasedTotal)} em despesa",
+                        color = GreenPrimary,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Spacer(Modifier.height(2.dp))
+                }
                 Text(
                     text = "$purchased/$totalItems itens comprados",
                     color = Color.Gray,
