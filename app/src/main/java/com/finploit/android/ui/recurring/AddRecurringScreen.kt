@@ -46,7 +46,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.Switch
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDatePickerState
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
 import com.finploit.android.util.filterAmountInput
 import com.finploit.android.util.parseAmountInput
 import com.finploit.android.util.round2
@@ -84,6 +94,12 @@ fun AddRecurringScreen(
     var selectedCategoryId by remember { mutableStateOf<Int?>(null) }
     var occurrences by remember { mutableStateOf("12") }
     var totalAmount by remember { mutableStateOf("") }
+    var useBusinessDay by remember { mutableStateOf(false) }
+    var businessDay by remember { mutableStateOf("5") }
+    var startDate by remember { mutableStateOf("") }
+    var endDate by remember { mutableStateOf("") }
+    var notification by remember { mutableStateOf(true) }
+    var datePickerFor by remember { mutableStateOf<String?>(null) }
     var frequencyExpanded by remember { mutableStateOf(false) }
     var categoryExpanded by remember { mutableStateOf(false) }
 
@@ -255,9 +271,12 @@ fun AddRecurringScreen(
 
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedTextField(
-                    value = dueDay,
-                    onValueChange = { dueDay = it.filter { c -> c.isDigit() } },
-                    label = { Text("Dia do vencimento") },
+                    value = if (useBusinessDay) businessDay else dueDay,
+                    onValueChange = {
+                        val digits = it.filter { c -> c.isDigit() }
+                        if (useBusinessDay) businessDay = digits else dueDay = digits
+                    },
+                    label = { Text(if (useBusinessDay) "N.º dia útil" else "Dia do vencimento") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
                     modifier = Modifier.weight(1f),
@@ -274,6 +293,59 @@ fun AddRecurringScreen(
                     colors = fieldColors(),
                     shape = RoundedCornerShape(12.dp),
                 )
+            }
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Switch(checked = useBusinessDay, onCheckedChange = { useBusinessDay = it })
+                Column {
+                    Text("Vence em dia útil", color = Color.White, fontSize = 14.sp)
+                    Text(
+                        if (useBusinessDay)
+                            "O $businessDay.º dia útil do mês (feriados não contam)."
+                        else "Dia fixo do mês.",
+                        color = Color.Gray,
+                        fontSize = 11.sp,
+                    )
+                }
+            }
+
+            OutlinedTextField(
+                value = startDate,
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("Início (opcional)") },
+                placeholder = { Text("dd/mm/aaaa") },
+                trailingIcon = {
+                    TextButton(onClick = { datePickerFor = "start" }) { Text("Escolher") }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                colors = fieldColors(),
+                shape = RoundedCornerShape(12.dp),
+            )
+
+            OutlinedTextField(
+                value = endDate,
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("Término (opcional)") },
+                placeholder = { Text("dd/mm/aaaa") },
+                trailingIcon = {
+                    TextButton(onClick = { datePickerFor = "end" }) { Text("Escolher") }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                colors = fieldColors(),
+                shape = RoundedCornerShape(12.dp),
+            )
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Switch(checked = notification, onCheckedChange = { notification = it })
+                Text("Avisar no dia do vencimento", color = Color.White, fontSize = 14.sp)
             }
 
             if ((occurrences.toIntOrNull() ?: 0) > 0) {
@@ -301,11 +373,14 @@ fun AddRecurringScreen(
                         amount = parseAmountInput(amount) ?: return@Button,
                         type = type,
                         frequency = frequency,
-                        dueDay = dueDay.toIntOrNull() ?: 1,
+                        dueDay = if (useBusinessDay) null else (dueDay.toIntOrNull() ?: 1),
+                        businessDay = if (useBusinessDay) (businessDay.toIntOrNull() ?: 5) else null,
                         categoryId = selectedCategoryId ?: return@Button,
-                        endDate = "2099-12-31",
+                        startDate = startDate.ifBlank { null },
+                        endDate = endDate.ifBlank { null },
                         occurrences = occurrences.toIntOrNull() ?: 12,
                         totalAmount = parseAmountInput(totalAmount),
+                        notification = notification,
                         currency = currencyConfig.code,
                     )
                 },
@@ -322,6 +397,38 @@ fun AddRecurringScreen(
             }
         }
     }
+
+    // O mesmo padrão do EditTransactionScreen: guarda ISO, o diálogo mostra o
+    // calendário do sistema (que já vem no idioma do telemóvel).
+    datePickerFor?.let { alvo ->
+        val atual = if (alvo == "start") startDate else endDate
+        val initialMillis = runCatching {
+            LocalDate.parse(atual).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli()
+        }.getOrElse { System.currentTimeMillis() }
+        val state = rememberDatePickerState(initialSelectedDateMillis = initialMillis)
+        DatePickerDialog(
+            onDismissRequest = { datePickerFor = null },
+            confirmButton = {
+                TextButton(onClick = {
+                    state.selectedDateMillis?.let { millis ->
+                        val iso = Instant.ofEpochMilli(millis)
+                            .atZone(ZoneOffset.UTC)
+                            .toLocalDate()
+                            .format(DateTimeFormatter.ISO_LOCAL_DATE)
+                        if (alvo == "start") startDate = iso else endDate = iso
+                    }
+                    datePickerFor = null
+                }) { Text("OK") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    if (alvo == "start") startDate = "" else endDate = ""
+                    datePickerFor = null
+                }) { Text("Limpar") }
+            },
+        ) { DatePicker(state = state) }
+    }
+
 }
 
 @Composable
