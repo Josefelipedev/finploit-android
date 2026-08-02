@@ -13,6 +13,9 @@ class RecurringRepository @Inject constructor(private val api: RecurringApi) {
     suspend fun create(request: CreateRecurringRequest): Result<RecurringTransactionDto> =
         runCatching { api.create(request) }
 
+    suspend fun update(id: Int, request: CreateRecurringRequest): Result<RecurringTransactionDto> =
+        runCatching { api.update(id, request) }
+
     suspend fun delete(id: Int): Result<Unit> = runCatching {
         api.delete(id)
         Unit

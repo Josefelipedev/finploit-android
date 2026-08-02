@@ -31,6 +31,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -59,6 +62,17 @@ import com.finploit.android.ui.theme.currencyConfigByCode
 @Composable
 fun RecurringScreen(viewModel: RecurringViewModel, onBack: (() -> Unit)? = null) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    // Tocar num cartão abre o mesmo formulário da criação, em modo de edição.
+    var editing by remember { mutableStateOf<RecurringTransactionDto?>(null) }
+    editing?.let { alvo ->
+        AddRecurringScreen(
+            viewModel = viewModel,
+            onDismiss = { editing = null },
+            existing = alvo,
+        )
+        return
+    }
 
     Column(
         modifier = Modifier
@@ -112,6 +126,7 @@ fun RecurringScreen(viewModel: RecurringViewModel, onBack: (() -> Unit)? = null)
                         tx = tx,
                         isDeleting = tx.id in uiState.deletingIds,
                         onDelete = { viewModel.delete(tx.id) },
+                        onEdit = { editing = tx },
                     )
                 }
                 item { Spacer(Modifier.height(80.dp)) }
@@ -126,6 +141,7 @@ private fun SwipeToDeleteRecurring(
     tx: RecurringTransactionDto,
     isDeleting: Boolean,
     onDelete: () -> Unit,
+    onEdit: () -> Unit,
 ) {
     val dismissState = rememberSwipeToDismissBoxState(
         confirmValueChange = { value ->
@@ -159,12 +175,12 @@ private fun SwipeToDeleteRecurring(
             }
         },
     ) {
-        RecurringCard(tx)
+        RecurringCard(tx, onEdit)
     }
 }
 
 @Composable
-private fun RecurringCard(tx: RecurringTransactionDto) {
+private fun RecurringCard(tx: RecurringTransactionDto, onEdit: () -> Unit) {
     val isIncome = tx.type == "income"
     val color = if (isIncome) IncomeGreen else ExpenseRed
     val icon = if (isIncome) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward
@@ -180,6 +196,7 @@ private fun RecurringCard(tx: RecurringTransactionDto) {
     }
 
     Card(
+        onClick = onEdit,
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = CardBackground),

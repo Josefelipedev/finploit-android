@@ -7,6 +7,7 @@ import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.POST
+import retrofit2.http.PUT
 import retrofit2.http.Path
 
 interface RecurringApi {
@@ -18,6 +19,12 @@ interface RecurringApi {
 
     @POST("recurring-finance")
     suspend fun create(@Body request: CreateRecurringRequest): RecurringTransactionDto
+
+    @PUT("recurring-finance/{id}")
+    suspend fun update(
+        @Path("id") id: Int,
+        @Body request: CreateRecurringRequest,
+    ): RecurringTransactionDto
 
     @DELETE("recurring-finance/{id}")
     suspend fun delete(@Path("id") id: Int): Response<Void>

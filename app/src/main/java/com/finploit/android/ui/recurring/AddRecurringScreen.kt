@@ -57,6 +57,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
+import com.finploit.android.data.dto.RecurringTransactionDto
 import com.finploit.android.util.filterAmountInput
 import com.finploit.android.util.parseAmountInput
 import com.finploit.android.util.round2
@@ -81,6 +82,8 @@ private val frequencies = listOf(
 fun AddRecurringScreen(
     viewModel: RecurringViewModel,
     onDismiss: () -> Unit,
+    /** Quando vem preenchida, o ecrã edita em vez de criar. */
+    existing: RecurringTransactionDto? = null,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -100,6 +103,26 @@ fun AddRecurringScreen(
     var endDate by remember { mutableStateOf("") }
     var notification by remember { mutableStateOf(true) }
     var datePickerFor by remember { mutableStateOf<String?>(null) }
+
+    // Editar: o formulário abre com o que já lá está. Sem isto, guardar
+    // apagaria tudo o que não fosse escrito outra vez.
+    LaunchedEffect(existing?.id) {
+        existing?.let { r ->
+            type = if (r.type == "income" || r.type == "receita") "income" else "expense"
+            description = r.description.orEmpty()
+            amount = String.format("%.2f", r.amount).replace('.', ',')
+            frequency = r.frequency
+            dueDay = (r.dueDay ?: 1).toString()
+            useBusinessDay = r.businessDay != null
+            businessDay = (r.businessDay ?: 5).toString()
+            selectedCategoryId = r.categoryId
+            occurrences = (r.occurrences ?: 0).takeIf { it > 0 }?.toString().orEmpty()
+            totalAmount = r.contractedTotal?.let { String.format("%.2f", it).replace('.', ',') }.orEmpty()
+            startDate = r.startDate?.take(10).orEmpty()
+            endDate = r.endDate?.take(10).orEmpty()
+            notification = r.notification ?: true
+        }
+    }
     var frequencyExpanded by remember { mutableStateOf(false) }
     var categoryExpanded by remember { mutableStateOf(false) }
 
@@ -146,7 +169,7 @@ fun AddRecurringScreen(
             .background(SurfaceDark),
     ) {
         TopAppBar(
-            title = { Text("Nova Recorrente", fontWeight = FontWeight.Bold) },
+            title = { Text(if (existing == null) "Nova Recorrente" else "Editar Recorrente", fontWeight = FontWeight.Bold) },
             navigationIcon = {
                 IconButton(onClick = onDismiss) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar", tint = Color.White)
@@ -368,21 +391,44 @@ fun AddRecurringScreen(
 
             Button(
                 onClick = {
-                    viewModel.create(
-                        description = description.trim(),
-                        amount = parseAmountInput(amount) ?: return@Button,
-                        type = type,
-                        frequency = frequency,
-                        dueDay = if (useBusinessDay) null else (dueDay.toIntOrNull() ?: 1),
-                        businessDay = if (useBusinessDay) (businessDay.toIntOrNull() ?: 5) else null,
-                        categoryId = selectedCategoryId ?: return@Button,
-                        startDate = startDate.ifBlank { null },
-                        endDate = endDate.ifBlank { null },
-                        occurrences = occurrences.toIntOrNull() ?: 12,
-                        totalAmount = parseAmountInput(totalAmount),
-                        notification = notification,
-                        currency = currencyConfig.code,
-                    )
+                    val parcela = parseAmountInput(amount) ?: return@Button
+                    val categoria = selectedCategoryId ?: return@Button
+                    val diaFixo = if (useBusinessDay) null else (dueDay.toIntOrNull() ?: 1)
+                    val diaUtil = if (useBusinessDay) (businessDay.toIntOrNull() ?: 5) else null
+                    if (existing == null) {
+                        viewModel.create(
+                            description = description.trim(),
+                            amount = parcela,
+                            type = type,
+                            frequency = frequency,
+                            dueDay = diaFixo,
+                            businessDay = diaUtil,
+                            categoryId = categoria,
+                            startDate = startDate.ifBlank { null },
+                            endDate = endDate.ifBlank { null },
+                            occurrences = occurrences.toIntOrNull() ?: 12,
+                            notification = notification,
+                            totalAmount = parseAmountInput(totalAmount),
+                            currency = currencyConfig.code,
+                        )
+                    } else {
+                        viewModel.update(
+                            id = existing.id,
+                            description = description.trim(),
+                            amount = parcela,
+                            type = type,
+                            frequency = frequency,
+                            dueDay = diaFixo,
+                            businessDay = diaUtil,
+                            categoryId = categoria,
+                            startDate = startDate.ifBlank { null },
+                            endDate = endDate.ifBlank { null },
+                            occurrences = occurrences.toIntOrNull() ?: 12,
+                            notification = notification,
+                            totalAmount = parseAmountInput(totalAmount),
+                            currency = currencyConfig.code,
+                        )
+                    }
                 },
                 enabled = isValid && !uiState.isSaving,
                 modifier = Modifier.fillMaxWidth().height(52.dp),
@@ -392,7 +438,7 @@ fun AddRecurringScreen(
                 if (uiState.isSaving) {
                     CircularProgressIndicator(modifier = Modifier.size(22.dp), color = SurfaceDark, strokeWidth = 2.dp)
                 } else {
-                    Text("Criar Recorrente", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text(if (existing == null) "Criar Recorrente" else "Salvar Alterações", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 }
             }
         }

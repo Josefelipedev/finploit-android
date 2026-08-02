@@ -55,6 +55,81 @@ class RecurringViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Criar e editar mandam o MESMO corpo: o `PUT` do servidor é um
+     * `PartialType` do `POST`, e enviar o formulário inteiro evita a
+     * ambiguidade de "o que é que ficou por dizer".
+     */
+    private fun buildRequest(
+        description: String,
+        amount: Double,
+        type: String,
+        frequency: String,
+        dueDay: Int?,
+        businessDay: Int?,
+        categoryId: Int,
+        startDate: String?,
+        endDate: String?,
+        occurrences: Int,
+        notification: Boolean,
+        totalAmount: Double?,
+        currency: String?,
+    ) = CreateRecurringRequest(
+        description = description,
+        amount = amount,
+        currency = currency,
+        // O servidor aceita os dois; o Android sempre mandou em português.
+        type = when (type) {
+            "expense" -> "despesa"
+            "income" -> "receita"
+            else -> type
+        },
+        frequency = frequency,
+        dueDay = dueDay,
+        businessDay = businessDay,
+        weekDay = 0,
+        notification = notification,
+        categoryId = categoryId,
+        startDate = startDate,
+        endDate = endDate,
+        occurrences = occurrences,
+        totalAmount = totalAmount,
+    )
+
+    fun update(
+        id: Int,
+        description: String,
+        amount: Double,
+        type: String,
+        frequency: String,
+        dueDay: Int?,
+        businessDay: Int?,
+        categoryId: Int,
+        startDate: String?,
+        endDate: String?,
+        occurrences: Int,
+        notification: Boolean = true,
+        totalAmount: Double? = null,
+        currency: String? = null,
+    ) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isSaving = true, saveError = null, saveSuccess = false)
+            repository.update(
+                id,
+                buildRequest(
+                    description, amount, type, frequency, dueDay, businessDay,
+                    categoryId, startDate, endDate, occurrences, notification,
+                    totalAmount, currency,
+                ),
+            )
+                .onSuccess {
+                    _uiState.value = _uiState.value.copy(isSaving = false, saveSuccess = true)
+                    loadAll()
+                }
+                .onFailure { _uiState.value = _uiState.value.copy(isSaving = false, saveError = it.message) }
+        }
+    }
+
     fun create(
         description: String,
         amount: Double,
@@ -70,31 +145,13 @@ class RecurringViewModel @Inject constructor(
         totalAmount: Double? = null,
         currency: String? = null,
     ) {
-        // Backend maps: type == "despesa" → "expense", anything else → "income"
-        // So we must send "despesa" for expenses; "receita" for income
-        val backendType = when (type) {
-            "expense" -> "despesa"
-            "income" -> "receita"
-            else -> type
-        }
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isSaving = true, saveError = null, saveSuccess = false)
             repository.create(
-                CreateRecurringRequest(
-                    description = description,
-                    amount = amount,
-                    currency = currency,
-                    type = backendType,
-                    frequency = frequency,
-                    dueDay = dueDay,
-                    businessDay = businessDay,
-                    weekDay = 0,
-                    notification = notification,
-                    categoryId = categoryId,
-                    startDate = startDate,
-                    endDate = endDate,
-                    occurrences = occurrences,
-                    totalAmount = totalAmount,
+                buildRequest(
+                    description, amount, type, frequency, dueDay, businessDay,
+                    categoryId, startDate, endDate, occurrences, notification,
+                    totalAmount, currency,
                 )
             )
                 .onSuccess {
