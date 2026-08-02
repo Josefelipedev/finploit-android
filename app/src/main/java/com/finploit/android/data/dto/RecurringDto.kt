@@ -21,6 +21,10 @@ data class RecurringTransactionDto(
     val totalAmount: Double? = null,
     /** Total já resolvido pelo servidor: `totalAmount` ou parcela × parcelas. */
     val contractedTotal: Double? = null,
+    /** Quantas ocorrências já foram pagas. */
+    val executedCount: Int? = null,
+    /** Somatório do que foi mesmo pago (não é parcela × pagamentos). */
+    val paidTotal: Double? = null,
 )
 
 data class CreateRecurringRequest(

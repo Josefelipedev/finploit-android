@@ -243,7 +243,16 @@ private fun RecurringCard(tx: RecurringTransactionDto, onEdit: () -> Unit) {
                 // dívida: o total contratado vem calculado da API.
                 tx.contractedTotal?.takeIf { (tx.occurrences ?: 0) > 0 }?.let { total ->
                     Text(
-                        text = "${tx.occurrences}× · ${currency.format(total)}",
+                        text = "${tx.executedCount ?: 0}/${tx.occurrences} · ${currency.format(total)}",
+                        color = Color.Gray,
+                        fontSize = 11.sp,
+                    )
+                }
+                // O que já foi pago vem somado do servidor, não de
+                // parcela × pagamentos — que mente quando as parcelas diferem.
+                tx.paidTotal?.takeIf { it > 0 }?.let { pago ->
+                    Text(
+                        text = "pago ${currency.format(pago)}",
                         color = Color.Gray,
                         fontSize = 11.sp,
                     )
