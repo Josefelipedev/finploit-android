@@ -67,6 +67,8 @@ import com.finploit.android.ui.theme.SurfaceDark
 import com.finploit.android.ui.theme.TextPrimary
 import com.finploit.android.ui.theme.TextSecondary
 import com.finploit.android.ui.theme.currencyConfigByCode
+import com.finploit.android.util.filterAmountInput
+import com.finploit.android.util.parseAmountInput
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -321,7 +323,7 @@ private fun AccountForm(
 
         OutlinedTextField(
             value = balance,
-            onValueChange = { balance = it.filter { c -> c.isDigit() || c == '.' || c == ',' } },
+            onValueChange = { balance = filterAmountInput(it) },
             label = { Text("Saldo atual (opcional)") },
             placeholder = { Text("0,00") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -346,7 +348,7 @@ private fun AccountForm(
                         bankName.trim(),
                         accountNumber.trim().ifBlank { null },
                         agency.trim().ifBlank { null },
-                        balance.replace(',', '.').toDoubleOrNull(),
+                        parseAmountInput(balance),
                         currency,
                     )
                 },

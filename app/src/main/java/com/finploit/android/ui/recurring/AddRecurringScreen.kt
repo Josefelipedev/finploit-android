@@ -47,6 +47,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import com.finploit.android.util.filterAmountInput
+import com.finploit.android.util.parseAmountInput
+import com.finploit.android.util.round2
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -80,6 +83,7 @@ fun AddRecurringScreen(
     var dueDay by remember { mutableStateOf("1") }
     var selectedCategoryId by remember { mutableStateOf<Int?>(null) }
     var occurrences by remember { mutableStateOf("12") }
+    var totalAmount by remember { mutableStateOf("") }
     var frequencyExpanded by remember { mutableStateOf(false) }
     var categoryExpanded by remember { mutableStateOf(false) }
 
@@ -90,7 +94,35 @@ fun AddRecurringScreen(
         uiState.saveError?.let { snackbarHostState.showSnackbar(it); viewModel.clearSaveState() }
     }
 
-    val isValid = description.isNotBlank() && amount.toDoubleOrNull() != null && selectedCategoryId != null
+    val isValid =
+        description.isNotBlank() && parseAmountInput(amount) != null && selectedCategoryId != null
+
+    // Total e parcela são a mesma coisa vista de dois lados, ligados pelo número
+    // de parcelas: escrever num deles refaz o outro. Quem grava — e quem dá o
+    // resto do arredondamento à última parcela — é o servidor.
+    fun formatAmount(value: Double) = String.format("%.2f", value).replace('.', ',')
+
+    fun onInstallmentTyped(raw: String) {
+        amount = filterAmountInput(raw)
+        val n = occurrences.toIntOrNull() ?: 0
+        val parcel = parseAmountInput(amount)
+        totalAmount = if (n > 0 && parcel != null) formatAmount(round2(parcel * n)) else ""
+    }
+
+    fun onTotalTyped(raw: String) {
+        totalAmount = filterAmountInput(raw)
+        val n = occurrences.toIntOrNull() ?: 0
+        val total = parseAmountInput(totalAmount)
+        if (n > 0 && total != null) amount = formatAmount(round2(total / n))
+    }
+
+    fun onOccurrencesTyped(raw: String) {
+        occurrences = raw.filter { c -> c.isDigit() }
+        val n = occurrences.toIntOrNull() ?: 0
+        // Mudar o número de parcelas mantém o TOTAL e refaz a parcela.
+        val total = parseAmountInput(totalAmount)
+        if (n > 0 && total != null) amount = formatAmount(round2(total / n))
+    }
 
     Column(
         modifier = Modifier
@@ -147,8 +179,14 @@ fun AddRecurringScreen(
             )
             OutlinedTextField(
                 value = amount,
-                onValueChange = { amount = it.filter { c -> c.isDigit() || c == '.' } },
-                label = { Text("Valor (${currencyConfig.symbol})") },
+                onValueChange = { onInstallmentTyped(it) },
+                label = {
+                    Text(
+                        if ((occurrences.toIntOrNull() ?: 0) > 0)
+                            "Valor da parcela (${currencyConfig.symbol})"
+                        else "Valor (${currencyConfig.symbol})"
+                    )
+                },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
@@ -228,11 +266,27 @@ fun AddRecurringScreen(
                 )
                 OutlinedTextField(
                     value = occurrences,
-                    onValueChange = { occurrences = it.filter { c -> c.isDigit() } },
-                    label = { Text("Ocorrências") },
+                    onValueChange = { onOccurrencesTyped(it) },
+                    label = { Text("Parcelas") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
                     modifier = Modifier.weight(1f),
+                    colors = fieldColors(),
+                    shape = RoundedCornerShape(12.dp),
+                )
+            }
+
+            if ((occurrences.toIntOrNull() ?: 0) > 0) {
+                OutlinedTextField(
+                    value = totalAmount,
+                    onValueChange = { onTotalTyped(it) },
+                    label = { Text("Valor total (${currencyConfig.symbol})") },
+                    supportingText = {
+                        Text("Escreva no total ou na parcela — o outro acompanha.")
+                    },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
                     colors = fieldColors(),
                     shape = RoundedCornerShape(12.dp),
                 )
@@ -244,13 +298,14 @@ fun AddRecurringScreen(
                 onClick = {
                     viewModel.create(
                         description = description.trim(),
-                        amount = amount.toDoubleOrNull() ?: return@Button,
+                        amount = parseAmountInput(amount) ?: return@Button,
                         type = type,
                         frequency = frequency,
                         dueDay = dueDay.toIntOrNull() ?: 1,
                         categoryId = selectedCategoryId ?: return@Button,
                         endDate = "2099-12-31",
                         occurrences = occurrences.toIntOrNull() ?: 12,
+                        totalAmount = parseAmountInput(totalAmount),
                         currency = currencyConfig.code,
                     )
                 },

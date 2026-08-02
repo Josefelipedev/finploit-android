@@ -64,6 +64,7 @@ class RecurringViewModel @Inject constructor(
         categoryId: Int,
         endDate: String,
         occurrences: Int,
+        totalAmount: Double? = null,
         currency: String? = null,
     ) {
         // Backend maps: type == "despesa" → "expense", anything else → "income"
@@ -88,6 +89,7 @@ class RecurringViewModel @Inject constructor(
                     categoryId = categoryId,
                     endDate = endDate,
                     occurrences = occurrences,
+                    totalAmount = totalAmount,
                 )
             )
                 .onSuccess {

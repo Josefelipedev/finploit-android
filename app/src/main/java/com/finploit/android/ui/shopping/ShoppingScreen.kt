@@ -57,6 +57,8 @@ import com.finploit.android.ui.theme.GreenPrimary
 import com.finploit.android.ui.theme.Green80
 import com.finploit.android.ui.theme.LocalCurrencyConfig
 import com.finploit.android.ui.theme.SurfaceDark
+import com.finploit.android.util.filterAmountInput
+import com.finploit.android.util.parseAmountInput
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -184,7 +186,7 @@ private fun MonthlyPlanDialog(
                 Text("A IA irá gerar uma lista completa para 1 mês com preços reais dos supermercados.", color = Color.Gray, fontSize = 13.sp)
                 OutlinedTextField(
                     value = budget,
-                    onValueChange = { budget = it.filter { c -> c.isDigit() || c == '.' } },
+                    onValueChange = { budget = filterAmountInput(it) },
                     label = { Text("Orçamento mensal (€) — opcional") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -211,7 +213,7 @@ private fun MonthlyPlanDialog(
         },
         confirmButton = {
             Button(
-                onClick = { onConfirm(budget.toDoubleOrNull(), notes.ifBlank { null }) },
+                onClick = { onConfirm(parseAmountInput(budget), notes.ifBlank { null }) },
                 enabled = !isLoading,
                 colors = ButtonDefaults.buttonColors(containerColor = GreenPrimary),
             ) {

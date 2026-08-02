@@ -74,6 +74,8 @@ import com.finploit.android.ui.theme.LocalCurrencyConfig
 import com.finploit.android.ui.theme.TextDisabled
 import com.finploit.android.ui.theme.TextPrimary
 import com.finploit.android.ui.theme.TextSecondary
+import com.finploit.android.util.filterAmountInput
+import com.finploit.android.util.parseAmountInput
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -119,7 +121,7 @@ internal fun ShoppingTab(
             text = {
                 OutlinedTextField(
                     value = priceDialogInput,
-                    onValueChange = { priceDialogInput = it.filter { c -> c.isDigit() || c == '.' } },
+                    onValueChange = { priceDialogInput = filterAmountInput(it) },
                     label = { Text("Valor pago (${currencyConfig.symbol})", fontSize = 12.sp) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
@@ -128,7 +130,7 @@ internal fun ShoppingTab(
             },
             confirmButton = {
                 Button(
-                    onClick = { onUpdateActualPrice(item.id, priceDialogInput.toDoubleOrNull()); priceDialogItem = null },
+                    onClick = { onUpdateActualPrice(item.id, parseAmountInput(priceDialogInput)); priceDialogItem = null },
                     colors = ButtonDefaults.buttonColors(containerColor = GreenPrimary),
                 ) { Text("Guardar", color = BackgroundDark, fontWeight = FontWeight.Bold) }
             },
@@ -199,7 +201,7 @@ internal fun ShoppingTab(
                             colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = GreenPrimary, focusedLabelColor = GreenPrimary, cursorColor = GreenPrimary),
                         )
                         OutlinedTextField(
-                            value = newItemPrice, onValueChange = { newItemPrice = it.filter { c -> c.isDigit() || c == '.' } },
+                            value = newItemPrice, onValueChange = { newItemPrice = filterAmountInput(it) },
                             label = { Text("Preço est.", fontSize = 12.sp) }, singleLine = true,
                             modifier = Modifier.weight(1f),
                             colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = GreenPrimary, focusedLabelColor = GreenPrimary, cursorColor = GreenPrimary),
@@ -211,7 +213,7 @@ internal fun ShoppingTab(
                 Button(
                     onClick = {
                         if (newItemName.isNotBlank()) {
-                            onAddCustomItem(newItemName, newItemQty.toDoubleOrNull() ?: 1.0, newItemUnit, newItemCategory.ifBlank { null }, newItemPrice.toDoubleOrNull())
+                            onAddCustomItem(newItemName, newItemQty.toDoubleOrNull() ?: 1.0, newItemUnit, newItemCategory.ifBlank { null }, parseAmountInput(newItemPrice))
                             newItemName = ""; newItemQty = "1"; newItemUnit = "un"; newItemCategory = ""; newItemPrice = ""
                             showAddDialog = false
                         }

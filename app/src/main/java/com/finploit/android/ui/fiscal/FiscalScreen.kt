@@ -63,6 +63,8 @@ import com.finploit.android.ui.theme.SurfaceDark
 import com.finploit.android.ui.theme.TextPrimary
 import com.finploit.android.ui.theme.TextSecondary
 import com.finploit.android.ui.theme.WarningAmber
+import com.finploit.android.util.filterAmountInput
+import com.finploit.android.util.parseAmountInput
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -326,7 +328,7 @@ private fun SetupForm(
                             withholdingMode = withholdingMode,
                             socialSecurityStatus = socialSecurityStatus,
                             activityCode = activityCode.trim().ifBlank { null },
-                            annualRevenue = annualRevenue.replace(',', '.').toDoubleOrNull() ?: 0.0,
+                            annualRevenue = parseAmountInput(annualRevenue) ?: 0.0,
                             hasEuB2bClients = hasEuB2bClients,
                             hasNonEuClients = hasNonEuClients,
                             hasPaymentsOnAccount = hasPaymentsOnAccount,

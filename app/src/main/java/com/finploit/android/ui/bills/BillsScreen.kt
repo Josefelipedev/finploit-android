@@ -87,6 +87,8 @@ import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.TextStyle
 import java.util.Locale
+import com.finploit.android.util.filterAmountInput
+import com.finploit.android.util.parseAmountInput
 
 private val ptBR = Locale("pt", "BR")
 
@@ -301,7 +303,7 @@ private fun PayAmountDialog(
     val itemCurrency = currencyConfigByCode(item.currency)
     val income = item.isIncome
     var text by remember { mutableStateOf("%.2f".format(item.amount)) }
-    val parsed = text.trim().replace(',', '.').toDoubleOrNull()
+    val parsed = parseAmountInput(text)
     val canConfirm = parsed != null && parsed >= 0.0
 
     AlertDialog(
@@ -388,7 +390,7 @@ private fun BillFormDialog(
     var currencyMenuExpanded by remember { mutableStateOf(false) }
     var categoryMenuExpanded by remember { mutableStateOf(false) }
 
-    val amount = amountText.trim().replace(',', '.').toDoubleOrNull()
+    val amount = parseAmountInput(amountText)
     val validDate = runCatching { LocalDate.parse(dueDate.trim()) }.isSuccess
     val canSave = description.trim().isNotEmpty() && amount != null && amount > 0.0 && validDate && !isSaving
 
@@ -419,7 +421,7 @@ private fun BillFormDialog(
 
                 OutlinedTextField(
                     value = amountText,
-                    onValueChange = { amountText = it.filter { c -> c.isDigit() || c == '.' || c == ',' } },
+                    onValueChange = { amountText = filterAmountInput(it) },
                     label = { Text("Valor (${selectedCurrency.code})") },
                     placeholder = { Text("0,00") },
                     singleLine = true,

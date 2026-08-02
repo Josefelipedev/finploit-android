@@ -14,6 +14,10 @@ data class RecurringTransactionDto(
     val occurrences: Int?,
     val userId: Int?,
     val categoryId: Int? = null,
+    /** Total contratado gravado (nulo nas recorrentes anteriores à coluna). */
+    val totalAmount: Double? = null,
+    /** Total já resolvido pelo servidor: `totalAmount` ou parcela × parcelas. */
+    val contractedTotal: Double? = null,
 )
 
 data class CreateRecurringRequest(
@@ -28,4 +32,6 @@ data class CreateRecurringRequest(
     val categoryId: Int,
     val endDate: String,
     val occurrences: Int,
+    /** Quando vem, manda: o servidor reparte-o pelas parcelas. */
+    val totalAmount: Double? = null,
 )

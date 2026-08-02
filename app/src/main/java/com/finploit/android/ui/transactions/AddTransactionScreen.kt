@@ -64,6 +64,8 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
+import com.finploit.android.util.filterAmountInput
+import com.finploit.android.util.parseAmountInput
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -152,7 +154,7 @@ fun AddTransactionScreen(
             // Valor — aceita vírgula (separador BRL) e ponto
             OutlinedTextField(
                 value = amount,
-                onValueChange = { amount = it.filter { c -> c.isDigit() || c == '.' || c == ',' } },
+                onValueChange = { amount = filterAmountInput(it) },
                 label = { Text("Valor (${LocalCurrencyConfig.current.symbol})") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 singleLine = true,
@@ -266,7 +268,7 @@ fun AddTransactionScreen(
 
             Button(
                 onClick = {
-                    val amountValue = amount.replace(',', '.').toDoubleOrNull() ?: return@Button
+                    val amountValue = parseAmountInput(amount) ?: return@Button
                     viewModel.createTransaction(
                         type = type,
                         amount = amountValue,
@@ -276,7 +278,7 @@ fun AddTransactionScreen(
                         accountId = selectedAccountId,
                     )
                 },
-                enabled = amount.isNotBlank() && amount.replace(',', '.').toDoubleOrNull() != null && !uiState.isCreating,
+                enabled = amount.isNotBlank() && parseAmountInput(amount) != null && !uiState.isCreating,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(52.dp),

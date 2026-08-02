@@ -215,12 +215,23 @@ private fun RecurringCard(tx: RecurringTransactionDto) {
                     }
                 }
             }
-            Text(
-                text = currency.format(tx.amount),
-                color = color,
-                fontWeight = FontWeight.ExtraBold,
-                fontSize = 16.sp,
-            )
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    text = currency.format(tx.amount),
+                    color = color,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 16.sp,
+                )
+                // Num parcelamento, a parcela sozinha não diz de quanto é a
+                // dívida: o total contratado vem calculado da API.
+                tx.contractedTotal?.takeIf { (tx.occurrences ?: 0) > 0 }?.let { total ->
+                    Text(
+                        text = "${tx.occurrences}× · ${currency.format(total)}",
+                        color = Color.Gray,
+                        fontSize = 11.sp,
+                    )
+                }
+            }
         }
     }
 }
