@@ -27,6 +27,8 @@ data class BillCurrencyTotalDto(
 
 data class BillItemDto(
     val id: Int = 0,
+    /** Dono da conta — o workspace é do casal, e o ecrã filtra por pessoa. */
+    val userId: Int? = null,
     val description: String = "",
     val amount: Double = 0.0,
     val paidAmount: Double? = null,

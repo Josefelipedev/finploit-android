@@ -1,6 +1,7 @@
 package com.finploit.android.ui.bills
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,6 +22,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Delete
@@ -33,6 +35,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -64,6 +67,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -113,11 +117,14 @@ fun BillsScreen(
         }
     }
 
-    val expenses = remember(uiState.items) {
-        uiState.items.filter { !it.isIncome }.sortedBy { if (it.overdue && !it.isPaid) 0 else 1 }
+    // As secções desenham o que passa nos filtros; os totais em cima continuam a
+    // ser os do mês inteiro, que é o que eles sempre foram.
+    val visible = uiState.visibleItems
+    val expenses = remember(visible) {
+        visible.filter { !it.isIncome }.sortedBy { if (it.overdue && !it.isPaid) 0 else 1 }
     }
-    val incomes = remember(uiState.items) {
-        uiState.items.filter { it.isIncome }.sortedBy { if (it.overdue && !it.isPaid) 0 else 1 }
+    val incomes = remember(visible) {
+        visible.filter { it.isIncome }.sortedBy { if (it.overdue && !it.isPaid) 0 else 1 }
     }
 
     Scaffold(
@@ -183,6 +190,33 @@ fun BillsScreen(
                     contentPadding = PaddingValues(20.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
+                    item(key = "filters") {
+                        BillFiltersBar(
+                            state = uiState,
+                            onChange = viewModel::setFilters,
+                            onClear = viewModel::clearFilters,
+                        )
+                    }
+
+                    if (visible.isEmpty()) {
+                        item(key = "empty-filtered") {
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                            ) {
+                                Text(
+                                    "Nenhuma conta com estes filtros.",
+                                    color = TextSecondary,
+                                    fontSize = 14.sp,
+                                )
+                                Spacer(Modifier.height(12.dp))
+                                TextButton(onClick = viewModel::clearFilters) {
+                                    Text("Limpar filtros", color = GreenPrimary, fontSize = 13.sp)
+                                }
+                            }
+                        }
+                    }
+
                     if (expenses.isNotEmpty()) {
                         item(key = "header-expense") { SectionHeader("A Pagar", ExpenseRed) }
                         items(expenses, key = { "e-${it.id}" }) { item ->
@@ -280,6 +314,174 @@ fun BillsScreen(
                 }
             },
         )
+    }
+}
+
+/**
+ * Os filtros da lista do mês.
+ *
+ * O que enche o ecrã são as atrasadas de meses anteriores, e por isso elas têm
+ * um botão só para si, com a contagem à vista. Os outros quatro são menus.
+ *
+ * O contador diz "N de M" e mostra o subtotal do que está à vista — **só quando
+ * todas as linhas filtradas estão na mesma moeda**, porque aqui não há taxas de
+ * câmbio à mão e somar moedas diferentes é precisamente o erro que os totais do
+ * servidor existem para evitar.
+ */
+@Composable
+private fun BillFiltersBar(
+    state: BillsUiState,
+    onChange: (BillFilters) -> Unit,
+    onClear: () -> Unit,
+) {
+    val filters = state.filters
+    val visible = state.visibleItems
+    val subtotal = state.visibleTotal
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(CardBackground)
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        if (state.carriedOverCount > 0) {
+            val on = filters.showCarriedOver
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(if (on) WarningAmber.copy(alpha = 0.18f) else SurfaceDark)
+                    .clickable { onChange(filters.copy(showCarriedOver = !on)) }
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+            ) {
+                Text(
+                    "Atrasadas de meses anteriores (${state.carriedOverCount})",
+                    color = if (on) WarningAmber else TextSecondary,
+                    fontSize = 12.sp,
+                    fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal,
+                )
+            }
+        }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterMenu(
+                modifier = Modifier.weight(1f),
+                current = filters.type.label,
+                options = BillTypeFilter.entries.map { it.label to it },
+                onPick = { onChange(filters.copy(type = it)) },
+            )
+            FilterMenu(
+                modifier = Modifier.weight(1f),
+                current = filters.status.label,
+                options = BillStatusFilter.entries.map { it.label to it },
+                onPick = { onChange(filters.copy(status = it)) },
+            )
+        }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (state.categoriesInMonth.size > 1) {
+                FilterMenu(
+                    modifier = Modifier.weight(1f),
+                    current = filters.category ?: "Todas as categorias",
+                    options = listOf<Pair<String, String?>>("Todas as categorias" to null) +
+                        state.categoriesInMonth.map { it to it },
+                    onPick = { onChange(filters.copy(category = it)) },
+                )
+            }
+            // Num workspace de uma pessoa só, este filtro seria ruído.
+            if (state.hasMultipleOwners) {
+                FilterMenu(
+                    modifier = Modifier.weight(1f),
+                    current = filters.owner.label,
+                    options = BillOwnerFilter.entries.map { it.label to it },
+                    onPick = { onChange(filters.copy(owner = it)) },
+                )
+            }
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                buildString {
+                    append("${visible.size} de ${state.items.size}")
+                    subtotal?.let { (total, currency) ->
+                        append(" · ${currencyConfigByCode(currency).format(total)}")
+                    }
+                },
+                color = TextDisabled,
+                fontSize = 12.sp,
+            )
+            if (filters.isActive) {
+                Text(
+                    "Limpar filtros",
+                    color = GreenPrimary,
+                    fontSize = 12.sp,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .clickable(onClick = onClear)
+                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                )
+            }
+        }
+    }
+}
+
+/** Menu de uma escolha só, com o valor actual à vista. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun <T> FilterMenu(
+    modifier: Modifier = Modifier,
+    current: String,
+    options: List<Pair<String, T>>,
+    onPick: (T) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Box(modifier = modifier) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .background(SurfaceDark)
+                .clickable { expanded = true }
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                current,
+                color = TextSecondary,
+                fontSize = 12.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
+            )
+            Icon(
+                Icons.Default.ArrowDropDown,
+                contentDescription = null,
+                tint = TextDisabled,
+                modifier = Modifier.size(16.dp),
+            )
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            containerColor = CardBackground,
+        ) {
+            options.forEach { (label, value) ->
+                DropdownMenuItem(
+                    text = { Text(label, color = TextPrimary, fontSize = 13.sp) },
+                    onClick = {
+                        expanded = false
+                        onPick(value)
+                    },
+                )
+            }
+        }
     }
 }
 

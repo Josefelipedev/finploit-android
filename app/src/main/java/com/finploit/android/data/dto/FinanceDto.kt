@@ -48,6 +48,33 @@ data class DashboardResponse(
     val transactions: List<TransactionDto>,
 )
 
+/**
+ * "O que me sobra depois de pagar o que falta este mês?" — `GET /finance/forecast`.
+ *
+ * É **sempre o mês corrente**, de propósito: misturar um intervalo arbitrário
+ * com "o que falta pagar até ao fim do mês" daria um número que não responde a
+ * pergunta nenhuma. Vem somado do servidor, do mesmo motor que o resumo do
+ * WhatsApp usa, com as moedas convertidas antes de somar.
+ */
+data class MonthForecastDto(
+    val month: String,
+    val realized: ForecastAmountsDto,
+    val pending: ForecastPendingDto,
+    val projectedBalance: Double,
+    val displayCurrency: String? = null,
+)
+
+data class ForecastAmountsDto(
+    val income: Double = 0.0,
+    val expense: Double = 0.0,
+    val balance: Double = 0.0,
+)
+
+data class ForecastPendingDto(
+    val income: Double = 0.0,
+    val expense: Double = 0.0,
+)
+
 data class StatsDto(
     val revenueLastWeek: Double,
     val expenseLastWeek: Double = 0.0,

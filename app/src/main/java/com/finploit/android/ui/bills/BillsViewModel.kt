@@ -7,6 +7,7 @@ import com.finploit.android.data.dto.CreateBillRequest
 import com.finploit.android.data.dto.FinanceCategoryDto
 import com.finploit.android.data.dto.UpdateBillRequest
 import com.finploit.android.data.repository.BillsRepository
+import com.finploit.android.data.repository.CoupleRepository
 import com.finploit.android.data.repository.FinanceCategoryRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -15,11 +16,54 @@ import kotlinx.coroutines.launch
 import java.time.YearMonth
 import javax.inject.Inject
 
+/** Estado do filtro por estado da conta. */
+enum class BillStatusFilter(val label: String) {
+    All("Pendentes e pagas"), Pending("Só pendentes"), Paid("Só pagas")
+}
+
+/** A pagar, a receber, ou os dois. */
+enum class BillTypeFilter(val label: String) {
+    All("A pagar e a receber"), Expense("Só a pagar"), Income("Só a receber")
+}
+
+/** De quem são as contas — só aparece num workspace de casal. */
+enum class BillOwnerFilter(val label: String) {
+    All("Do casal"), Mine("Só minhas")
+}
+
+/**
+ * Os filtros da lista do mês.
+ *
+ * Com o backfill a materializar meses antigos, uma lista passa a ter linhas em
+ * que metade são atrasadas de meses anteriores — e o único filtro que havia era
+ * o mês. São todos no cliente: a lista do mês já vem toda, e filtrar no servidor
+ * obrigava a ir buscá-la outra vez a cada toque. É o mesmo conjunto que a web
+ * tem (`BillsPage`).
+ */
+data class BillFilters(
+    val showCarriedOver: Boolean = true,
+    val status: BillStatusFilter = BillStatusFilter.All,
+    val type: BillTypeFilter = BillTypeFilter.All,
+    /** `null` = todas; senão o nome da categoria (ou "Sem categoria"). */
+    val category: String? = null,
+    val owner: BillOwnerFilter = BillOwnerFilter.All,
+) {
+    val isActive: Boolean
+        get() = !showCarriedOver ||
+            status != BillStatusFilter.All ||
+            type != BillTypeFilter.All ||
+            category != null ||
+            owner != BillOwnerFilter.All
+}
+
 data class BillsUiState(
     val isLoading: Boolean = true,
     val isSaving: Boolean = false,
     val month: String = YearMonth.now().toString(),
     val items: List<BillItemDto> = emptyList(),
+    val filters: BillFilters = BillFilters(),
+    /** Id de quem está autenticado, para o filtro "só minhas". */
+    val myUserId: Int? = null,
     val totalPending: Double = 0.0,
     val totalPaid: Double = 0.0,
     val expensePending: Double = 0.0,
@@ -30,12 +74,57 @@ data class BillsUiState(
     val realizedBalance: Double = 0.0,
     val categories: List<FinanceCategoryDto> = emptyList(),
     val error: String? = null,
-)
+) {
+    /** O que passa nos filtros. Os totais em cima continuam a ser os do mês inteiro. */
+    val visibleItems: List<BillItemDto>
+        get() = items.filter { item ->
+            when {
+                !filters.showCarriedOver && item.carriedOver -> false
+                filters.status == BillStatusFilter.Pending && item.isPaid -> false
+                filters.status == BillStatusFilter.Paid && !item.isPaid -> false
+                filters.type == BillTypeFilter.Expense && item.isIncome -> false
+                filters.type == BillTypeFilter.Income && !item.isIncome -> false
+                filters.category != null && item.categoryLabel != filters.category -> false
+                filters.owner == BillOwnerFilter.Mine &&
+                    myUserId != null && item.userId != myUserId -> false
+                else -> true
+            }
+        }
+
+    /** As categorias que existem no mês, para a lista do filtro. */
+    val categoriesInMonth: List<String>
+        get() = items.map { it.categoryLabel }.distinct().sorted()
+
+    val carriedOverCount: Int get() = items.count { it.carriedOver }
+
+    /** Só se mostra o filtro de pessoa quando há contas de mais do que uma. */
+    val hasMultipleOwners: Boolean
+        get() = items.mapNotNull { it.userId }.distinct().size > 1
+
+    /**
+     * Subtotal do que está à vista — só quando todas as linhas filtradas estão
+     * na mesma moeda. Somar 100 BRL com 100 EUR e escrever 200 é o erro que os
+     * totais do servidor existem para evitar, e aqui não há taxas à mão.
+     */
+    val visibleTotal: Pair<Double, String>?
+        get() {
+            val visible = visibleItems
+            if (visible.isEmpty()) return null
+            val currency = visible.first().currency
+            if (visible.any { it.currency != currency }) return null
+            return visible.sumOf { if (it.isPaid) it.paidAmount ?: it.amount else it.amount } to currency
+        }
+}
+
+/** O rótulo por que se agrupa e filtra; a conta sem categoria também é um grupo. */
+private val BillItemDto.categoryLabel: String
+    get() = categoryName?.takeIf { it.isNotBlank() } ?: "Sem categoria"
 
 @HiltViewModel
 class BillsViewModel @Inject constructor(
     private val repository: BillsRepository,
     private val categoryRepository: FinanceCategoryRepository,
+    private val coupleRepository: CoupleRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(BillsUiState())
@@ -44,6 +133,7 @@ class BillsViewModel @Inject constructor(
     init {
         load(_uiState.value.month)
         loadCategories()
+        loadMyUserId()
     }
 
     private fun loadCategories() {
@@ -51,6 +141,26 @@ class BillsViewModel @Inject constructor(
             categoryRepository.getCategories(active = true)
                 .onSuccess { list -> _uiState.value = _uiState.value.copy(categories = list) }
         }
+    }
+
+    /**
+     * Falhar isto não estraga o ecrã: sem id, o filtro "só minhas" não aparece
+     * (`hasMultipleOwners` continua a decidir) e a lista mostra tudo, que é o
+     * que mostrava antes de haver filtros.
+     */
+    private fun loadMyUserId() {
+        viewModelScope.launch {
+            coupleRepository.getProfile()
+                .onSuccess { profile -> _uiState.value = _uiState.value.copy(myUserId = profile.id) }
+        }
+    }
+
+    fun setFilters(filters: BillFilters) {
+        _uiState.value = _uiState.value.copy(filters = filters)
+    }
+
+    fun clearFilters() {
+        _uiState.value = _uiState.value.copy(filters = BillFilters())
     }
 
     fun load(month: String) {

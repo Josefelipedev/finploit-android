@@ -19,8 +19,15 @@ class AnalysisRepository @Inject constructor(
     private val api: AnalysisApi,
     @ApplicationContext private val context: Context,
 ) {
-    suspend fun getAnalysis(): Result<AnalysisResponse> = runCatching { api.getAnalysis() }
-    suspend fun getInsight(): Result<InsightResponse> = runCatching { api.getInsight() }
+    suspend fun getAnalysis(
+        startDate: String? = null,
+        endDate: String? = null,
+    ): Result<AnalysisResponse> = runCatching { api.getAnalysis(startDate, endDate) }
+
+    suspend fun getInsight(
+        startDate: String? = null,
+        endDate: String? = null,
+    ): Result<InsightResponse> = runCatching { api.getInsight(startDate, endDate) }
 
     suspend fun analyseReceiptImage(uri: Uri): Result<ReceiptAnalysisResult> = runCatching {
         val rawBytes = context.contentResolver.openInputStream(uri)?.readBytes()

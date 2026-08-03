@@ -53,8 +53,11 @@ class GlobalSearchViewModel @Inject constructor(
     private fun search(query: String) {
         viewModelScope.launch {
             _state.update { it.copy(isLoading = true) }
-            val txResult = financeRepository.getTransactions(limit = 200)
-            val txs = txResult.getOrDefault(emptyList()).filter { tx ->
+            // Percorre as páginas todas: com uma página só, quem tivesse mais de
+            // 200 lançamentos não encontrava os mais antigos e a busca dizia que
+            // não existiam.
+            val txResult = financeRepository.getAllTransactions()
+            val txs = txResult.map { it.data }.getOrDefault(emptyList()).filter { tx ->
                 tx.description?.contains(query, ignoreCase = true) == true
             }
             val goals = goalRepository.getGoals().getOrDefault(emptyList()).filter { goal ->

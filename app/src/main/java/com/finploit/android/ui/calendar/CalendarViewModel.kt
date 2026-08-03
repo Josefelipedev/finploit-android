@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.finploit.android.data.dto.FinanceItemDto
 import com.finploit.android.data.repository.FinanceRepository
+import com.finploit.android.util.signedForTotals
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -40,10 +41,9 @@ class CalendarViewModel @Inject constructor(
                 set(Calendar.YEAR, year); set(Calendar.MONTH, month - 1)
             }.getActualMaximum(Calendar.DAY_OF_MONTH)
             _state.update { it.copy(isLoading = true) }
-            financeRepository.getTransactionsPage(
+            financeRepository.getAllTransactions(
                 startDate = "%04d-%02d-01".format(year, month),
                 endDate = "%04d-%02d-%02d".format(year, month, lastDay),
-                limit = 500,
             ).onSuccess { page ->
                 // Pelo dia do movimento (`referenceDate`), que é por onde a API
                 // filtra o período — agrupar por `createdAt` punha no dia da
@@ -53,10 +53,11 @@ class CalendarViewModel @Inject constructor(
                 }
                 // `amountForTotals` é o valor já convertido pelo servidor: somar
                 // `amount` misturava moedas (100 BRL + 100 EUR davam 200).
+                //
+                // `signedForTotals` deixa de fora o tipo que não se sabe somar —
+                // antes, tudo o que não fosse `income` entrava como despesa.
                 val dailyBalances = byDay.mapValues { (_, list) ->
-                    list.sumOf { tx ->
-                        if (tx.type == "income") tx.amountForTotals else -tx.amountForTotals
-                    }
+                    list.sumOf { tx -> signedForTotals(tx.type, tx.amountForTotals) ?: 0.0 }
                 }
                 _state.update {
                     it.copy(

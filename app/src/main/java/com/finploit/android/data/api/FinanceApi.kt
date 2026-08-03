@@ -5,6 +5,7 @@ import com.finploit.android.data.dto.DashboardResponse
 import com.finploit.android.data.dto.FinanceItemDto
 import com.finploit.android.data.dto.FinanceListResponse
 import com.finploit.android.data.dto.FinanceSummaryResponse
+import com.finploit.android.data.dto.MonthForecastDto
 import com.finploit.android.data.dto.UpdateFinanceRequest
 import retrofit2.Response
 import retrofit2.http.Body
@@ -29,6 +30,10 @@ interface FinanceApi {
         @Query("page") page: Int = 1,
         @Query("limit") limit: Int = 20,
     ): FinanceListResponse
+
+    /** Mês corrente: realizado + o que falta pagar/receber até ao fim. */
+    @GET("finance/forecast")
+    suspend fun getMonthForecast(): MonthForecastDto
 
     @GET("finance/summary")
     suspend fun getSummary(

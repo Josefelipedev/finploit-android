@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -56,7 +57,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.finploit.android.data.dto.MonthForecastDto
 import com.finploit.android.data.dto.TransactionDto
+import com.finploit.android.ui.theme.currencyConfigByCode
 import com.finploit.android.ui.theme.BackgroundDark
 import com.finploit.android.ui.theme.CardBackground
 import com.finploit.android.ui.theme.CardElevated
@@ -190,6 +193,10 @@ fun DashboardScreen(
                         )
                     }
 
+                    uiState.forecast?.let { forecast ->
+                        item { MonthForecastCard(forecast) }
+                    }
+
                     if (data.stats.revenueLastWeek > 0 || data.stats.expenseLastWeek > 0) {
                         item {
                             WeekStatsRow(
@@ -257,7 +264,11 @@ private fun BalanceCard(balance: Double, income: Double, expense: Double) {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Text("Saldo Total", color = TextSecondary, fontSize = 14.sp)
+                // "Saldo Total" prometia o dinheiro que se tem; o número é
+                // `totalIncome - totalExpense` do período, que é outra coisa. A
+                // web mudou o mesmo rótulo (B3) — o saldo das contas bancárias,
+                // esse, é um valor informado à mão e não acompanha lançamentos.
+                Text("Saldo Líquido", color = TextSecondary, fontSize = 14.sp)
                 Spacer(Modifier.height(6.dp))
                 Text(
                     text = formatCurrency(balance, currencyConfig),
@@ -304,6 +315,114 @@ private fun StatItem(label: String, value: Double, isIncome: Boolean) {
             Text(label, color = TextSecondary, fontSize = 12.sp)
             Text(formatCurrency(value, currencyConfig), color = color, fontWeight = FontWeight.Bold, fontSize = 15.sp)
         }
+    }
+}
+
+/**
+ * "O que me sobra depois de pagar o que falta este mês?"
+ *
+ * Era a pergunta para que as contas a pagar existem, e não tinha resposta fora
+ * do ecrã delas: o resumo em cima olha só para o realizado. Os números vêm
+ * somados do servidor (`GET /finance/forecast`), já convertidos.
+ *
+ * Diz no subtítulo que é **sempre o mês corrente** — na web, onde há seletor de
+ * período, isso era essencial; aqui mantém-se para os dois clientes contarem a
+ * mesma história.
+ */
+@Composable
+private fun MonthForecastCard(forecast: MonthForecastDto) {
+    val currencyConfig = forecast.displayCurrency
+        ?.let { currencyConfigByCode(it) }
+        ?: LocalCurrencyConfig.current
+    val nada = forecast.pending.expense == 0.0 && forecast.pending.income == 0.0
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = CardBackground),
+    ) {
+        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        "Este mês, até ao fim",
+                        color = TextPrimary,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 15.sp,
+                    )
+                    Text(
+                        "É sempre o mês corrente",
+                        color = TextDisabled,
+                        fontSize = 11.sp,
+                    )
+                }
+                Text(
+                    forecast.month,
+                    color = TextSecondary,
+                    fontSize = 11.sp,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(CardElevated)
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                )
+            }
+
+            Spacer(Modifier.height(14.dp))
+
+            if (nada) {
+                Text(
+                    "Não há contas por pagar nem valores a receber até ao fim do mês. " +
+                        "O saldo previsto é o realizado: " +
+                        formatCurrency(forecast.realized.balance, currencyConfig) + ".",
+                    color = TextSecondary,
+                    fontSize = 13.sp,
+                )
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    ForecastFigure("Realizado", forecast.realized.balance, TextPrimary, currencyConfig)
+                    ForecastFigure("A pagar", forecast.pending.expense, ExpenseRed, currencyConfig)
+                }
+                Spacer(Modifier.height(12.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    ForecastFigure("A receber", forecast.pending.income, IncomeGreen, currencyConfig)
+                    ForecastFigure(
+                        "Sobra prevista",
+                        forecast.projectedBalance,
+                        if (forecast.projectedBalance >= 0) GreenPrimary else ExpenseRed,
+                        currencyConfig,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RowScope.ForecastFigure(
+    label: String,
+    value: Double,
+    color: Color,
+    currencyConfig: CurrencyConfig,
+) {
+    Column(Modifier.weight(1f)) {
+        Text(label, color = TextDisabled, fontSize = 11.sp)
+        Spacer(Modifier.height(2.dp))
+        Text(
+            formatCurrency(value, currencyConfig),
+            color = color,
+            fontWeight = FontWeight.Bold,
+            fontSize = 16.sp,
+        )
     }
 }
 
