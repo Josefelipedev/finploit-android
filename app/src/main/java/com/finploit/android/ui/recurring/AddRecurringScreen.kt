@@ -70,10 +70,13 @@ import com.finploit.android.ui.theme.IncomeGreen
 import com.finploit.android.ui.theme.LocalCurrencyConfig
 import com.finploit.android.ui.theme.SurfaceDark
 
+// "Diário" saiu (C1): a geração de contas nunca o produziu — a recorrente era
+// criada, aparecia na lista e não gerava conta nem aviso. O servidor deixou de
+// a aceitar. O rótulo continua no `RecurringScreen` para o caso de existir
+// alguma gravada de antes.
 private val frequencies = listOf(
     "monthly" to "Mensal",
     "weekly" to "Semanal",
-    "daily" to "Diário",
     "yearly" to "Anual",
 )
 
@@ -267,7 +270,11 @@ fun AddRecurringScreen(
                 onExpandedChange = { frequencyExpanded = it },
             ) {
                 OutlinedTextField(
-                    value = frequencies.first { it.first == frequency }.second,
+                    // `first {}` rebentava a editar uma recorrente cuja
+                    // frequência já não está na lista — a diária, agora que
+                    // saiu. Mostra-se a chave crua em vez de deitar o ecrã
+                    // abaixo.
+                    value = frequencies.firstOrNull { it.first == frequency }?.second ?: frequency,
                     onValueChange = {},
                     readOnly = true,
                     label = { Text("Frequência") },

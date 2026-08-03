@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.finploit.android.data.dto.DashboardResponse
 import com.finploit.android.data.dto.MonthForecastDto
 import com.finploit.android.data.repository.FinanceRepository
+import com.finploit.android.util.Period
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -14,6 +15,12 @@ import javax.inject.Inject
 
 data class DashboardUiState(
     val isLoading: Boolean = false,
+    /**
+     * O recorte dos cartões. Antes não havia: chamava-se `/finance/dashboard`
+     * sem datas, e sem datas o servidor não filtra — o cartão era "de sempre"
+     * enquanto o mesmo cartão na web era o do período escolhido (B4).
+     */
+    val period: Period = Period.Last30Days,
     val data: DashboardResponse? = null,
     /**
      * O mês corrente até ao fim. Fica fora do `data` de propósito: falhar a
@@ -36,10 +43,17 @@ class DashboardViewModel @Inject constructor(
         loadDashboard()
     }
 
+    fun setPeriod(period: Period) {
+        if (period == _uiState.value.period) return
+        _uiState.value = _uiState.value.copy(period = period)
+        loadDashboard()
+    }
+
     fun loadDashboard() {
+        val (start, end) = _uiState.value.period.range()
         viewModelScope.launch {
-            _uiState.value = DashboardUiState(isLoading = true)
-            financeRepository.getDashboard()
+            _uiState.value = _uiState.value.copy(isLoading = true, data = null, error = null)
+            financeRepository.getDashboard(start, end)
                 .onSuccess { data -> _uiState.value = _uiState.value.copy(isLoading = false, data = data) }
                 .onFailure { e -> _uiState.value = _uiState.value.copy(isLoading = false, error = e.message) }
         }

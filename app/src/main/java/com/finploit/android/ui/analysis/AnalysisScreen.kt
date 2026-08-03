@@ -53,6 +53,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.finploit.android.data.dto.CategorySummaryDto
+import com.finploit.android.ui.components.PeriodChips
 import com.finploit.android.ui.theme.BackgroundDark
 import com.finploit.android.ui.theme.CardBackground
 import com.finploit.android.ui.theme.CardElevated
@@ -172,46 +173,6 @@ fun AnalysisScreen(viewModel: AnalysisViewModel) {
             }
 
             item { Spacer(Modifier.height(80.dp)) }
-        }
-    }
-}
-
-/**
- * O recorte que este ecrã está a ver.
- *
- * Enquanto a API só sabia devolver o histórico todo, não havia escolha a
- * oferecer. Agora há, e o recorte é o mesmo que a web tem no seletor de datas —
- * com "Tudo" à mão, que é o que este ecrã sempre mostrou.
- */
-@Composable
-private fun PeriodChips(
-    selected: AnalysisPeriod,
-    onSelect: (AnalysisPeriod) -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        AnalysisPeriod.entries.forEach { period ->
-            val isSelected = period == selected
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(if (isSelected) GreenPrimary else CardElevated)
-                    .clickable { onSelect(period) }
-                    .padding(vertical = 8.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    period.label,
-                    color = if (isSelected) BackgroundDark else TextSecondary,
-                    fontSize = 12.sp,
-                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                )
-            }
         }
     }
 }

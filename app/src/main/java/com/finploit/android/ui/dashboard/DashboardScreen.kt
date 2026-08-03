@@ -59,6 +59,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.finploit.android.data.dto.MonthForecastDto
 import com.finploit.android.data.dto.TransactionDto
+import com.finploit.android.ui.components.PeriodChips
 import com.finploit.android.ui.theme.currencyConfigByCode
 import com.finploit.android.ui.theme.BackgroundDark
 import com.finploit.android.ui.theme.CardBackground
@@ -162,6 +163,11 @@ fun DashboardScreen(
                     }
                 }
             }
+        )
+
+        PeriodChips(
+            selected = uiState.period,
+            onSelect = viewModel::setPeriod,
         )
 
         when {

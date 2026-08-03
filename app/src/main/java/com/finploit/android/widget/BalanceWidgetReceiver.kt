@@ -7,6 +7,8 @@ import android.widget.RemoteViews
 import com.finploit.android.BuildConfig
 import com.finploit.android.R
 import com.finploit.android.data.local.TokenStorage
+import com.finploit.android.ui.theme.CURRENCY_OPTIONS
+import com.finploit.android.ui.theme.currencyConfigByCode
 import kotlinx.coroutines.*
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -50,7 +52,14 @@ class BalanceWidgetReceiver : AppWidgetProvider() {
                 val json = JSONObject(body)
                 val data = json.optJSONObject("data") ?: json
                 val balance = data.optDouble("totalBalance", 0.0)
-                val formatted = "€%.2f".format(balance)
+                // O símbolo estava fixo em "€" e a resposta traz o
+                // `displayCurrency` desde a multi-moeda: na conta da Bruna, que
+                // é em BRL, o widget mostrava reais com símbolo de euro — o
+                // valor certo a dizer a moeda errada, que é pior do que não
+                // dizer nada. Sem moeda na resposta, cai na do utilizador.
+                val currency = data.optString("displayCurrency").takeIf { it.isNotBlank() }
+                val formatted = currencyConfigByCode(currency ?: CURRENCY_OPTIONS.first().code)
+                    .format(balance)
                 withContext(Dispatchers.Main) {
                     views.setTextViewText(R.id.widget_balance, formatted)
                     manager.updateAppWidget(widgetId, views)
