@@ -2,6 +2,7 @@ package com.finploit.android.data.api
 
 import com.finploit.android.data.dto.CreateGoalRequest
 import com.finploit.android.data.dto.GoalDto
+import com.finploit.android.data.dto.UpdateGoalPaceRequest
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
@@ -21,6 +22,10 @@ interface GoalApi {
 
     @PUT("goals/{id}")
     suspend fun updateGoal(@Path("id") id: Int, @Body request: CreateGoalRequest): GoalDto
+
+    /** Só o ritmo mensal e a prioridade — o servidor aceita um corpo parcial. */
+    @PUT("goals/{id}")
+    suspend fun updateGoalPace(@Path("id") id: Int, @Body request: UpdateGoalPaceRequest): GoalDto
 
     @DELETE("goals/{id}")
     suspend fun deleteGoal(@Path("id") id: Int)
