@@ -723,9 +723,9 @@ private fun GoalPaceDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 PlanningField(monthly, { monthly = filterAmountInput(it) }, "Quanto por mês (${currency.symbol})", KeyboardType.Decimal)
-                PlanningField(priority, { priority = it.filter { c -> c.isDigit() } }, "Prioridade (1 = primeiro)", KeyboardType.Number)
+                PlanningField(priority, { priority = it.filter { c -> c.isDigit() } }, "Prioridade (maior = servida primeiro)", KeyboardType.Number)
                 Text(
-                    "A prioridade decide quem fica com o que sobra primeiro. Prometer a uma meta não é despesa — é excedente reservado.",
+                    "Quanto maior o número, mais cedo a meta é servida quando o dinheiro não chega para todas. Prometer a uma meta não é despesa — é excedente reservado.",
                     color = TextDisabled,
                     fontSize = 11.sp,
                 )
