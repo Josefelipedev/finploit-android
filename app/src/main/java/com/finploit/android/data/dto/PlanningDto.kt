@@ -20,6 +20,8 @@ data class PlanEventDto(
     val startMonth: String,
     val endMonth: String?,
     val categoryId: Int?,
+    /** Nome resolvido pelo servidor. Nulo = sem categoria. */
+    val categoryName: String?,
     val isActive: Boolean,
     val growsWithInflation: Boolean,
 )

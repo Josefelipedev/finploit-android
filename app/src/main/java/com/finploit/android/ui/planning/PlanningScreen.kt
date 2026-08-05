@@ -413,7 +413,8 @@ private fun ScenariosTab(
                                     Text(event.name, color = TextPrimary, fontSize = 13.sp)
                                     Text(
                                         "${frequencyLabel(event.frequency)} · desde ${event.startMonth}" +
-                                            (event.endMonth?.let { " até $it" } ?: ""),
+                                            (event.endMonth?.let { " até $it" } ?: "") +
+                                            (event.categoryName?.let { " · $it" } ?: ""),
                                         color = TextDisabled,
                                         fontSize = 11.sp,
                                     )
@@ -560,6 +561,12 @@ private fun EventDialog(
                     selectedId = categoryId,
                     label = "Categoria (opcional)",
                     onSelect = { categoryId = it },
+                )
+                Text(
+                    "Serve para arrumar o evento. Ele soma-se ao que já existe nessa " +
+                        "categoria — inclusive ao plano anual, se lá tiver um valor para o mesmo ano.",
+                    color = TextDisabled,
+                    fontSize = 10.sp,
                 )
                 OptionRow(
                     label = "Com que frequência",
