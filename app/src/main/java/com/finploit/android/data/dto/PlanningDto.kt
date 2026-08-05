@@ -82,6 +82,18 @@ data class BaselineLineDto(
     val monthlyAmount: Double,
 )
 
+/**
+ * Um compromisso contratado — salário, renda, prestação. Conta para a frente
+ * pelo valor cheio; `endsAfter` nulo = sem fim conhecido.
+ */
+data class CommitmentDto(
+    val name: String,
+    val type: String,
+    val monthlyAmount: Double,
+    val startsAt: String,
+    val endsAfter: String?,
+)
+
 data class EndingCommitmentDto(
     val name: String,
     val type: String,
@@ -95,11 +107,15 @@ data class BaselineWindowDto(
 )
 
 data class ProjectionBaselineDto(
+    /** O que varia, já sem o que os contratos explicam. */
     val lines: List<BaselineLineDto> = emptyList(),
+    val commitments: List<CommitmentDto> = emptyList(),
     val endingCommitments: List<EndingCommitmentDto> = emptyList(),
     val window: BaselineWindowDto?,
     val monthsCovered: Int,
     val netWorth: Double,
+    /** Falso = sem contas registadas: o património não é zero, é desconhecido. */
+    val netWorthKnown: Boolean = false,
 )
 
 data class ProjectionDto(

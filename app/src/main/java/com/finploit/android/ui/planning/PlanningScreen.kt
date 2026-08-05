@@ -140,6 +140,16 @@ private fun ProjectionTab(state: PlanningUiState, currency: CurrencyConfig) {
     val projection = state.overview?.projection ?: return
     val summary = projection.summary
 
+    // Sem contas bancárias registadas o património de partida não é zero — é
+    // desconhecido. Mostrar "0,00" fazia a projeção parecer a de quem não tem
+    // nada; o que se projeta nesse caso é o que se acumula a partir de hoje.
+    val netWorthUnknown =
+        !projection.baseline.netWorthKnown && projection.scenario.startingNetWorth == null
+
+    // O horizonte começa no mês seguinte, portanto o primeiro e o último ano
+    // são pedaços de ano. Sem o dizer, um parecia render um terço do outro.
+    val monthsPerYear = projection.months.groupingBy { it.month.take(4) }.eachCount()
+
     LazyColumn(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -157,9 +167,14 @@ private fun ProjectionTab(state: PlanningUiState, currency: CurrencyConfig) {
                     }
                     Spacer(Modifier.height(12.dp))
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Metric("Hoje", currency.format(summary.startBalance), TextPrimary)
                         Metric(
-                            "Daqui a ${projection.scenario.horizonYears} anos",
+                            "Hoje",
+                            if (netWorthUnknown) "Por saber" else currency.format(summary.startBalance),
+                            if (netWorthUnknown) TextDisabled else TextPrimary,
+                        )
+                        Metric(
+                            if (netWorthUnknown) "Acumula em ${projection.scenario.horizonYears} anos"
+                            else "Daqui a ${projection.scenario.horizonYears} anos",
                             currency.format(summary.endBalance),
                             if (summary.endBalance >= summary.startBalance) IncomeGreen else ExpenseRed,
                         )
@@ -174,6 +189,17 @@ private fun ProjectionTab(state: PlanningUiState, currency: CurrencyConfig) {
                         Metric("Inflação", "${projection.scenario.inflationPct}% ao ano", TextSecondary)
                     }
                 }
+            }
+        }
+
+        if (netWorthUnknown) {
+            item {
+                Text(
+                    "A app não sabe com quanto é que partes: não há contas bancárias registadas. " +
+                        "Os saldos abaixo são o que se acumula daqui para a frente, não o teu património.",
+                    color = TextDisabled,
+                    fontSize = 11.sp,
+                )
             }
         }
 
@@ -198,7 +224,14 @@ private fun ProjectionTab(state: PlanningUiState, currency: CurrencyConfig) {
             ) {
                 Column(Modifier.padding(14.dp)) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text("${year.year}", color = TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                        val meses = monthsPerYear["${'$'}{year.year}"] ?: 12
+                        Text(
+                            if (meses < 12) "${'$'}{year.year}  ·  ${'$'}meses meses" else "${'$'}{year.year}",
+                            color = TextPrimary,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 15.sp,
+                            modifier = Modifier.weight(1f),
+                        )
                         Text(
                             currency.format(year.endBalance),
                             color = if (year.endBalance >= 0) IncomeGreen else ExpenseRed,
@@ -227,18 +260,44 @@ private fun ProjectionTab(state: PlanningUiState, currency: CurrencyConfig) {
             }
         }
 
-        if (projection.baseline.endingCommitments.isNotEmpty()) {
-            item { SectionTitle("Compromissos que acabam") }
-            items(projection.baseline.endingCommitments) { commitment ->
+        if (projection.baseline.commitments.isNotEmpty()) {
+            item { SectionTitle("Contratado (recorrentes)") }
+            item {
+                Text(
+                    "O que se sabe de certeza. Conta pelo valor cheio enquanto durar.",
+                    color = TextDisabled,
+                    fontSize = 11.sp,
+                )
+            }
+            items(projection.baseline.commitments) { commitment ->
                 Row(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                     Column(Modifier.weight(1f)) {
                         Text(commitment.name, color = TextPrimary, fontSize = 13.sp)
-                        Text("até ${commitment.endsAfter}", color = TextDisabled, fontSize = 11.sp)
+                        Text(
+                            commitment.endsAfter?.let { "até ${'$'}it" } ?: "sem fim",
+                            color = TextDisabled,
+                            fontSize = 11.sp,
+                        )
                     }
                     Text(
-                        currency.format(commitment.monthlyAmount),
+                        (if (commitment.type == "income") "+" else "−") +
+                            currency.format(commitment.monthlyAmount),
                         color = if (commitment.type == "income") IncomeGreen else ExpenseRed,
                         fontSize = 13.sp,
+                    )
+                }
+            }
+        }
+
+        if (projection.baseline.lines.isNotEmpty()) {
+            item { SectionTitle("O que varia (média do histórico)") }
+            items(projection.baseline.lines) { line ->
+                Row(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
+                    Text(line.name, color = TextSecondary, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                    Text(
+                        (if (line.type == "income") "+" else "−") + currency.format(line.monthlyAmount),
+                        color = TextDisabled,
+                        fontSize = 12.sp,
                     )
                 }
             }
@@ -248,7 +307,9 @@ private fun ProjectionTab(state: PlanningUiState, currency: CurrencyConfig) {
             val window = projection.baseline.window
             Text(
                 if (window != null)
-                    "Base: ${projection.baseline.monthsCovered} meses de histórico (${window.start} a ${window.end})."
+                    "Base: ${'$'}{projection.baseline.commitments.size} contratos + média de " +
+                        "${'$'}{projection.baseline.monthsCovered} meses de histórico " +
+                        "(${'$'}{window.start} a ${'$'}{window.end})."
                 else "Sem histórico suficiente para uma média.",
                 color = TextDisabled,
                 fontSize = 11.sp,
