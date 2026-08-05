@@ -199,6 +199,7 @@ data class PlanEventRequest(
     val frequency: String = "monthly",
     val startMonth: String,
     val endMonth: String? = null,
+    val categoryId: Int? = null,
     val isActive: Boolean? = null,
     val growsWithInflation: Boolean? = null,
 )

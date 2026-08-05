@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Wallet
 import androidx.compose.material3.Card
@@ -89,6 +90,7 @@ fun DashboardScreen(
     onCalendarClick: () -> Unit = {},
     onSearchClick: () -> Unit = {},
     onScanReceiptClick: () -> Unit = {},
+    onPlanningClick: () -> Unit = {},
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var showOverflowMenu by remember { mutableStateOf(false) }
@@ -148,6 +150,11 @@ fun DashboardScreen(
                             icon = Icons.Default.Wallet,
                             label = "Limites de orçamento",
                             onClick = { showOverflowMenu = false; onBudgetClick() },
+                        )
+                        DashboardMenuItem(
+                            icon = Icons.Default.TrendingUp,
+                            label = "Planeamento",
+                            onClick = { showOverflowMenu = false; onPlanningClick() },
                         )
                         DashboardMenuItem(
                             icon = Icons.Default.CameraAlt,

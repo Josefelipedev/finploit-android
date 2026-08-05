@@ -50,6 +50,7 @@ import com.finploit.android.ui.grocery.GrocerySearchScreen
 import com.finploit.android.ui.grocery.GrocerySearchViewModel
 import com.finploit.android.ui.pantry.PantryScreen
 import com.finploit.android.ui.pantry.PantryViewModel
+import com.finploit.android.ui.planning.PlanningScreen
 import com.finploit.android.ui.analysis.AnalysisScreen
 import com.finploit.android.ui.mealplanner.MealPlannerScreen
 import com.finploit.android.ui.analysis.NotificationsScreen
@@ -113,6 +114,7 @@ fun MainScreen(onLogout: () -> Unit) {
     var showCalendar by remember { mutableStateOf(false) }
     var showGlobalSearch by remember { mutableStateOf(false) }
     var showReceiptScan by remember { mutableStateOf(false) }
+    var showPlanning by remember { mutableStateOf(false) }
     var groceryInitialItems by remember { mutableStateOf<List<EnrichItem>>(emptyList()) }
     var groceryListTabLabel by remember { mutableStateOf("Lista de Itens") }
     var selectedShoppingList by remember { mutableStateOf<ShoppingListDto?>(null) }
@@ -129,7 +131,7 @@ fun MainScreen(onLogout: () -> Unit) {
     // BackHandler: botão voltar do sistema fecha overlays em vez de sair do app
     val isShowingOverlay = showProfile || showNotifications || showPantry || showBudgetLimits ||
         showMonthlyReport || showCalendar || showGlobalSearch || showReceiptScan ||
-        showGrocerySearch || showAddTransaction || editingTransaction != null ||
+        showPlanning || showGrocerySearch || showAddTransaction || editingTransaction != null ||
         showAddGoal || showAddShoppingList || showAddRecurring || selectedShoppingList != null
 
     BackHandler(enabled = isShowingOverlay) {
@@ -142,6 +144,7 @@ fun MainScreen(onLogout: () -> Unit) {
             showCalendar -> showCalendar = false
             showGlobalSearch -> showGlobalSearch = false
             showReceiptScan -> showReceiptScan = false
+            showPlanning -> showPlanning = false
             showGrocerySearch -> showGrocerySearch = false
             showAddTransaction -> showAddTransaction = false
             editingTransaction != null -> editingTransaction = null
@@ -179,6 +182,8 @@ fun MainScreen(onLogout: () -> Unit) {
                 GlobalSearchScreen(viewModel = hiltViewModel(), onBack = { showGlobalSearch = false })
             showReceiptScan ->
                 ReceiptScanScreen(viewModel = hiltViewModel(), onBack = { showReceiptScan = false })
+            showPlanning ->
+                PlanningScreen(viewModel = hiltViewModel(), onBack = { showPlanning = false })
             showGrocerySearch ->
                 GrocerySearchScreen(
                     viewModel = groceryViewModel,
@@ -293,6 +298,7 @@ fun MainScreen(onLogout: () -> Unit) {
                                 onCalendarClick = { showCalendar = true },
                                 onSearchClick = { showGlobalSearch = true },
                                 onScanReceiptClick = { showReceiptScan = true },
+                                onPlanningClick = { showPlanning = true },
                             )
                         }
                         composable(BottomNav.Transactions.route) {

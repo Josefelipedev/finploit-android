@@ -157,13 +157,18 @@ class PlanningViewModel @Inject constructor(
 
     // ── Plano anual ───────────────────────────────────────────────────────
 
-    fun saveYearPlanItem(categoryId: Int, type: String, plannedAmount: Double) {
+    /**
+     * `note` nulo **apaga** a observação — o servidor só mantém a que lá está
+     * quando o campo não vem de todo. Enviar sempre o que está no formulário é
+     * o que faz o campo vazio significar "sem observação".
+     */
+    fun saveYearPlanItem(categoryId: Int, type: String, plannedAmount: Double, note: String?) {
         val year = _uiState.value.year
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isSaving = true, error = null)
             val result = repository.saveYearPlan(
                 year,
-                listOf(YearPlanItemRequest(categoryId, type, plannedAmount)),
+                listOf(YearPlanItemRequest(categoryId, type, plannedAmount, note)),
             )
             _uiState.value = _uiState.value.copy(yearPlan = result.getOrNull() ?: _uiState.value.yearPlan)
             finishWrite(result.isSuccess, "Plano gravado.", "Não foi possível gravar o plano.")
