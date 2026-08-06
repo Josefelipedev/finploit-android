@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -27,6 +28,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.SwipeToDismissBox
@@ -50,11 +52,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.finploit.android.data.dto.RecurringTransactionDto
+import com.finploit.android.ui.components.OwnerChip
 import com.finploit.android.ui.theme.CardBackground
 import com.finploit.android.ui.theme.ExpenseRed
 import com.finploit.android.ui.theme.Green80
 import com.finploit.android.ui.theme.IncomeGreen
 import com.finploit.android.ui.theme.SurfaceDark
+import com.finploit.android.ui.theme.TextPrimary
+import com.finploit.android.ui.theme.TextSecondary
 import com.finploit.android.ui.theme.LocalCurrencyConfig
 import com.finploit.android.ui.theme.currencyConfigByCode
 
@@ -121,6 +126,10 @@ fun RecurringScreen(viewModel: RecurringViewModel, onBack: (() -> Unit)? = null)
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 item { Spacer(Modifier.height(4.dp)) }
+                // Quanto isto tudo custa por mês e quanto falta pagar até ao
+                // fim dos contratos: a conta que a lista deixava para a cabeça
+                // de quem lê, parcela a parcela.
+                item { RecurringSummaryCard(uiState.transactions) }
                 items(uiState.transactions, key = { it.id }) { tx ->
                     SwipeToDeleteRecurring(
                         tx = tx,
@@ -227,6 +236,8 @@ private fun RecurringCard(tx: RecurringTransactionDto, onEdit: () -> Unit) {
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     FrequencyBadge(frequencyLabel)
+                    // Quem lançou — só aparece no workspace do casal.
+                    OwnerChip(tx.userId)
                     tx.dueDay?.takeIf { it > 0 }?.let {
                         Text("Vence dia $it", color = Color.Gray, fontSize = 12.sp)
                     }
@@ -257,8 +268,102 @@ private fun RecurringCard(tx: RecurringTransactionDto, onEdit: () -> Unit) {
                         fontSize = 11.sp,
                     )
                 }
+                // O que ainda falta desembolsar. Sem isto, quem quer saber
+                // quanto deve tinha de subtrair de cabeça o pago do contratado.
+                tx.remainingTotal()?.let { falta ->
+                    val quitada = if (isIncome) "recebida" else "quitada"
+                    Text(
+                        text = if (falta > 0) "falta ${currency.format(falta)}" else quitada,
+                        color = if (falta > 0) TextSecondary else IncomeGreen,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 11.sp,
+                    )
+                }
             }
         }
+    }
+}
+
+/**
+ * O que as recorrentes custam, somado.
+ *
+ * Por moeda, e não convertido: o Android não tem taxas de câmbio, e somar
+ * reais com euros dá um número plausível e errado. Um casal de uma só moeda,
+ * que é o caso normal, vê exatamente um bloco.
+ */
+@Composable
+private fun RecurringSummaryCard(transactions: List<RecurringTransactionDto>) {
+    val totals = recurringTotals(transactions, LocalCurrencyConfig.current.code)
+    if (totals.isEmpty()) return
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = CardBackground),
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            totals.forEachIndexed { index, t ->
+                val currency = currencyConfigByCode(t.currency)
+
+                if (totals.size > 1) {
+                    Text(
+                        "${currency.flag} ${t.currency}",
+                        color = TextSecondary,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    SummaryCell("Despesa/mês", currency.format(t.expenseMonthly), ExpenseRed)
+                    SummaryCell("Receita/mês", currency.format(t.incomeMonthly), IncomeGreen)
+                    SummaryCell(
+                        "Sobra/mês",
+                        currency.format(t.leftoverMonthly),
+                        if (t.leftoverMonthly < 0) ExpenseRed else IncomeGreen,
+                    )
+                }
+
+                Column {
+                    Text("Falta pagar", color = TextSecondary, fontSize = 11.sp)
+                    Text(
+                        if (t.installments > 0) currency.format(t.remaining) else "—",
+                        color = TextPrimary,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp,
+                    )
+                    Text(
+                        buildString {
+                            if (t.installments > 0) {
+                                append("${currency.format(t.paid)} de ${currency.format(t.contracted)} pagos")
+                            }
+                            if (t.openEnded > 0) {
+                                if (isNotEmpty()) append(" · ")
+                                append("${t.openEnded} sem fim definido")
+                            }
+                            if (isEmpty()) append("nenhum parcelamento em curso")
+                        },
+                        color = TextSecondary,
+                        fontSize = 11.sp,
+                    )
+                }
+
+                if (index < totals.lastIndex) {
+                    HorizontalDivider(color = TextSecondary.copy(alpha = 0.2f))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RowScope.SummaryCell(label: String, value: String, color: Color) {
+    Column(modifier = Modifier.weight(1f)) {
+        Text(label, color = TextSecondary, fontSize = 11.sp)
+        Text(value, color = color, fontWeight = FontWeight.Bold, fontSize = 14.sp)
     }
 }
 

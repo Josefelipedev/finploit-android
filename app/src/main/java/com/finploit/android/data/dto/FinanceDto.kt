@@ -141,6 +141,8 @@ data class FinanceItemDto(
     val referenceDate: String? = null,
     /** O mesmo valor na moeda de exibição do utilizador. É este que se soma. */
     val convertedAmount: Double? = null,
+    /** Quem lançou. No workspace do casal a lista mistura os dois. */
+    val userId: Int? = null,
 ) {
     /** Data do movimento (recuo para a de criação, como a API faz). */
     val movementDate: String get() = (referenceDate ?: createdAt).take(10)

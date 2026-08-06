@@ -74,6 +74,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.finploit.android.data.dto.BillItemDto
 import com.finploit.android.data.dto.FinanceCategoryDto
+import com.finploit.android.ui.components.OwnerChip
 import com.finploit.android.ui.theme.BackgroundDark
 import com.finploit.android.ui.theme.CURRENCY_OPTIONS
 import com.finploit.android.ui.theme.CardBackground
@@ -81,6 +82,7 @@ import com.finploit.android.ui.theme.ExpenseRed
 import com.finploit.android.ui.theme.GreenPrimary
 import com.finploit.android.ui.theme.IncomeGreen
 import com.finploit.android.ui.theme.LocalCurrencyConfig
+import com.finploit.android.ui.theme.LocalOwnerNaming
 import com.finploit.android.ui.theme.SurfaceDark
 import com.finploit.android.ui.theme.TextDisabled
 import com.finploit.android.ui.theme.TextPrimary
@@ -938,11 +940,15 @@ private fun BillCard(
                     }
                     Text("Vence ${formatDueDate(item.dueDate)}", color = TextSecondary, fontSize = 12.sp)
                 }
-                if (overdue || item.carriedOver) {
+                // O chip de autoria só aparece no workspace do casal; os outros
+                // dois só quando há o que assinalar.
+                val owner = LocalOwnerNaming.current.nameOf(item.userId)
+                if (overdue || item.carriedOver || owner != null) {
                     Spacer(Modifier.height(6.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         if (overdue) BillChip("Em atraso", ExpenseRed)
                         if (item.carriedOver) BillChip("Mês anterior", WarningAmber)
+                        OwnerChip(item.userId)
                     }
                 }
             }

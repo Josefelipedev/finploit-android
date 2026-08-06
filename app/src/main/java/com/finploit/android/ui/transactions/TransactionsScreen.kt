@@ -61,12 +61,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.finploit.android.data.dto.FinanceItemDto
+import com.finploit.android.ui.components.OwnerChip
 import com.finploit.android.ui.theme.CardBackground
 import com.finploit.android.ui.theme.ExpenseRed
 import com.finploit.android.ui.theme.Green80
 import com.finploit.android.ui.theme.IncomeGreen
 import com.finploit.android.ui.theme.SurfaceDark
 import com.finploit.android.ui.theme.LocalCurrencyConfig
+import com.finploit.android.ui.theme.LocalOwnerNaming
 import com.finploit.android.ui.theme.currencyConfigByCode
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -281,7 +283,16 @@ fun TransactionListItem(tx: FinanceItemDto, onClick: (() -> Unit)? = null) {
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 14.sp,
                 )
-                Text(text = tx.movementDate, color = Color.Gray, fontSize = 12.sp)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(text = tx.movementDate, color = Color.Gray, fontSize = 12.sp)
+                    // Quem lançou — só aparece no workspace do casal. Um
+                    // registo servido do cache offline não tem `userId`, e
+                    // nesse caso o chip fica de fora em vez de adivinhar.
+                    if (LocalOwnerNaming.current.nameOf(tx.userId) != null) {
+                        Spacer(Modifier.width(8.dp))
+                        OwnerChip(tx.userId)
+                    }
+                }
             }
             Text(
                 text = currencyConfig.format(tx.amount ?: 0.0),

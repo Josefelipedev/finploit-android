@@ -28,6 +28,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import com.finploit.android.ui.theme.LocalCurrencyConfig
+import com.finploit.android.ui.theme.LocalOwnerNaming
 import com.finploit.android.ui.theme.currencyConfigByCode
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -127,6 +128,7 @@ fun MainScreen(onLogout: () -> Unit) {
     val recurringDueCount by mainViewModel.recurringDueCount.collectAsState()
     val currencyCode by mainViewModel.currencyCode.collectAsState()
     val currencyConfig = currencyConfigByCode(currencyCode)
+    val ownerNaming by mainViewModel.ownerNaming.collectAsState()
 
     // BackHandler: botão voltar do sistema fecha overlays em vez de sair do app
     val isShowingOverlay = showProfile || showNotifications || showPantry || showBudgetLimits ||
@@ -164,7 +166,10 @@ fun MainScreen(onLogout: () -> Unit) {
         }
     }
 
-    CompositionLocalProvider(LocalCurrencyConfig provides currencyConfig) {
+    CompositionLocalProvider(
+        LocalCurrencyConfig provides currencyConfig,
+        LocalOwnerNaming provides ownerNaming,
+    ) {
         when {
             showProfile ->
                 ProfileScreen(viewModel = hiltViewModel(), onLogout = onLogout, onBack = { showProfile = false })
