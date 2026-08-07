@@ -2,6 +2,7 @@ package com.finploit.android.data.repository
 
 import com.finploit.android.data.api.GoalApi
 import com.finploit.android.data.dto.CreateGoalRequest
+import com.finploit.android.data.dto.DepositRequest
 import com.finploit.android.data.dto.GoalDto
 import com.finploit.android.data.dto.UpdateGoalPaceRequest
 import javax.inject.Inject
@@ -16,6 +17,14 @@ class GoalRepository @Inject constructor(private val api: GoalApi) {
 
     suspend fun updateGoal(id: Int, request: CreateGoalRequest): Result<GoalDto> =
         runCatching { api.updateGoal(id, request) }
+
+    /**
+     * Depositar (C2). Quem soma é o servidor: somar `currentValue + valor` no
+     * cliente e mandar um PUT fazia dois depósitos simultâneos perderem-se um
+     * ao outro — e não deixava rasto nenhum no livro-razão.
+     */
+    suspend fun deposit(id: Int, amount: Double, ledger: Boolean = true) =
+        runCatching { api.deposit(id, DepositRequest(amount, ledger)) }
 
     suspend fun updateGoalPace(
         id: Int,

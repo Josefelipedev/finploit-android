@@ -256,6 +256,19 @@ private fun SetupForm(
                 if (value.isEmpty() || value.matches(Regex("""\d*([.,]\d{0,2})?"""))) annualRevenue = value
             },
             label = { Text("Volume de negócios no ano (€)") },
+            supportingText = {
+                // C6: assim que houver categorias marcadas como faturação da
+                // atividade, este campo deixa de ser usado — o volume passa a
+                // ser somado dos lançamentos do ano.
+                Text(
+                    if (initial?.revenueSource == "ledger") {
+                        "Ignorado: o volume vem dos seus lançamentos (${initial.revenueYear ?: ""})."
+                    } else {
+                        "Usado enquanto não marcar categorias de receita como \"Faturação da atividade\"."
+                    },
+                    fontSize = 11.sp,
+                )
+            },
             placeholder = { Text("0,00") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),

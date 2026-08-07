@@ -6,10 +6,26 @@ data class BankAccountDto(
     val accountNumber: String? = null,
     val bankName: String = "",
     val agency: String? = null,
+    /**
+     * Saldo INICIAL — o ponto de partida escrito à mão (C5). O que se mostra é
+     * o `currentBalance`; este campo sozinho nunca acompanhou movimento nenhum.
+     */
     val balance: Double = 0.0,
+    /** O mesmo que `balance`, com o nome que diz o que é. */
+    val initialBalance: Double? = null,
+    /** Ponto de partida + o que entrou − o que saiu, calculado no servidor. */
+    val currentBalance: Double? = null,
+    /** O que os lançamentos ligados a esta conta somam. */
+    val movements: AccountMovementsDto? = null,
     val iconName: String? = null,
     val isArchived: Boolean = false,
     val userId: Int = 0,
+)
+
+data class AccountMovementsDto(
+    val income: Double = 0.0,
+    val expense: Double = 0.0,
+    val count: Int = 0,
 )
 
 data class CreateBankAccountRequest(

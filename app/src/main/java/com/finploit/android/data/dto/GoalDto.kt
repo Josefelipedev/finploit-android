@@ -34,3 +34,30 @@ data class CreateGoalRequest(
     val startDate: String? = null,
     val endDate: String? = null,
 )
+
+/**
+ * Um depósito numa meta (C2).
+ *
+ * `ledger = false` grava o depósito sem lançamento — para quem move dinheiro
+ * entre contas suas e não quer que isso conte como gasto.
+ */
+data class DepositRequest(
+    val amount: Double,
+    val ledger: Boolean = true,
+)
+
+data class GoalDepositDto(
+    val id: Int,
+    val goalId: Int,
+    val amount: Double,
+    val currency: String?,
+    val financeId: Int?,
+    val financeAutoCreated: Boolean = true,
+    val createdAt: String?,
+)
+
+/** O que o servidor devolve ao depositar: a meta já atualizada e o depósito. */
+data class DepositResultDto(
+    val goal: GoalDto,
+    val deposit: GoalDepositDto,
+)

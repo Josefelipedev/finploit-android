@@ -15,21 +15,34 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Snackbar
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -44,6 +57,8 @@ import com.finploit.android.ui.theme.ExpenseRed
 import com.finploit.android.ui.theme.Green80
 import com.finploit.android.ui.theme.SurfaceDark
 import com.finploit.android.ui.theme.LocalCurrencyConfig
+import com.finploit.android.ui.theme.TextDisabled
+import com.finploit.android.util.parseAmountInput
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -91,16 +106,117 @@ fun GoalsScreen(viewModel: GoalsViewModel) {
             ) {
                 item { Spacer(Modifier.height(4.dp)) }
                 items(uiState.goals, key = { it.id }) { goal ->
-                    GoalCard(goal = goal, onDelete = { viewModel.deleteGoal(goal.id) })
+                    GoalCard(
+                        goal = goal,
+                        onDelete = { viewModel.deleteGoal(goal.id) },
+                        onDeposit = { viewModel.startDeposit(goal) },
+                    )
                 }
                 item { Spacer(Modifier.height(80.dp)) }
             }
         }
+
+        uiState.depositMessage?.let { msg ->
+            Snackbar(
+                modifier = Modifier.padding(12.dp),
+                action = {
+                    TextButton(onClick = viewModel::clearDepositMessage) {
+                        Text("OK", color = Green80)
+                    }
+                },
+            ) { Text(msg) }
+        }
+    }
+
+    uiState.depositingGoal?.let { goal ->
+        DepositDialog(
+            goalName = goal.name,
+            isSaving = uiState.isDepositing,
+            onConfirm = { amount, ledger -> viewModel.deposit(amount, ledger) },
+            onDismiss = viewModel::cancelDeposit,
+        )
     }
 }
 
+/**
+ * Depositar numa meta.
+ *
+ * A caixa "registar como despesa" é a decisão do C2 à vista: por omissão o
+ * dinheiro sai também no livro-razão, porque saiu da conta de verdade. Desligar
+ * é para transferências entre contas próprias.
+ */
 @Composable
-private fun GoalCard(goal: GoalDto, onDelete: () -> Unit) {
+private fun DepositDialog(
+    goalName: String,
+    isSaving: Boolean,
+    onConfirm: (Double, Boolean) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val currency = LocalCurrencyConfig.current
+    var amount by remember { mutableStateOf("") }
+    var ledger by remember { mutableStateOf(true) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = CardBackground,
+        title = { Text("Depositar em $goalName", color = Color.White, fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    value = amount,
+                    onValueChange = { amount = it },
+                    label = { Text("Valor (${currency.symbol})", color = TextDisabled) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Green80,
+                        unfocusedBorderColor = TextDisabled.copy(alpha = 0.5f),
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White,
+                        cursorColor = Green80,
+                    ),
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(
+                        checked = ledger,
+                        onCheckedChange = { ledger = it },
+                        colors = CheckboxDefaults.colors(checkedColor = Green80),
+                    )
+                    Column {
+                        Text("Registar como despesa", color = Color.White, fontSize = 13.sp)
+                        Text(
+                            "Na categoria Metas. Desligue só se for transferência entre contas suas.",
+                            color = TextDisabled,
+                            fontSize = 11.sp,
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = !isSaving,
+                onClick = {
+                    val valor = parseAmountInput(amount) ?: return@TextButton
+                    if (valor > 0) onConfirm(valor, ledger)
+                },
+            ) {
+                Text(
+                    if (isSaving) "A depositar..." else "Depositar",
+                    color = Green80,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancelar", color = TextDisabled) }
+        },
+    )
+}
+
+@Composable
+private fun GoalCard(goal: GoalDto, onDelete: () -> Unit, onDeposit: () -> Unit) {
     val currency = LocalCurrencyConfig.current
     val current = goal.currentValue ?: 0.0
     val progress = if (goal.targetValue > 0) (current / goal.targetValue).toFloat().coerceIn(0f, 1f) else 0f
@@ -132,6 +248,11 @@ private fun GoalCard(goal: GoalDto, onDelete: () -> Unit) {
                     if (!goal.description.isNullOrBlank()) {
                         Text(goal.description, color = Color.Gray, fontSize = 12.sp)
                     }
+                }
+                // Depositar é o que faz a meta chegar ao livro-razão (C2); o
+                // telemóvel não tinha por onde o fazer.
+                IconButton(onClick = onDeposit, modifier = Modifier.size(36.dp)) {
+                    Icon(Icons.Default.Add, contentDescription = "Depositar", tint = Green80)
                 }
                 IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {
                     Icon(Icons.Default.Delete, contentDescription = "Excluir", tint = ExpenseRed.copy(alpha = 0.7f))

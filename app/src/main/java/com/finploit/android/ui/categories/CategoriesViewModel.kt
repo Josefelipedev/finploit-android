@@ -45,7 +45,7 @@ class CategoriesViewModel @Inject constructor(
         }
     }
 
-    fun create(name: String, description: String?) {
+    fun create(name: String, description: String?, isBusinessIncome: Boolean = false) {
         val trimmedName = name.trim()
         if (trimmedName.isEmpty()) return
         viewModelScope.launch {
@@ -55,13 +55,14 @@ class CategoriesViewModel @Inject constructor(
                     name = trimmedName,
                     description = description?.trim()?.takeIf { it.isNotEmpty() },
                     isActive = true,
+                    isBusinessIncome = isBusinessIncome,
                 ),
             )
             finishMutation(result.isSuccess, "Categoria criada.", result.exceptionOrNull())
         }
     }
 
-    fun update(id: Int, name: String, description: String?) {
+    fun update(id: Int, name: String, description: String?, isBusinessIncome: Boolean = false) {
         val trimmedName = name.trim()
         if (trimmedName.isEmpty()) return
         viewModelScope.launch {
@@ -71,6 +72,7 @@ class CategoriesViewModel @Inject constructor(
                 UpdateCategoryRequest(
                     name = trimmedName,
                     description = description?.trim()?.takeIf { it.isNotEmpty() },
+                    isBusinessIncome = isBusinessIncome,
                 ),
             )
             finishMutation(result.isSuccess, "Categoria atualizada.", result.exceptionOrNull())

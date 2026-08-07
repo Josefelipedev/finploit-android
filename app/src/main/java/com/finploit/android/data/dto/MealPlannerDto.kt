@@ -65,6 +65,10 @@ data class MealShoppingListDto(
     val totalEstimate: Double?,
     val notified: Boolean,
     val items: List<MealShoppingItemDto> = emptyList(),
+    /** Quando a lista foi dada por comprada e virou despesa (C4). */
+    val closedAt: String? = null,
+    /** A despesa que ela gerou. */
+    val financeId: Int? = null,
     // History-only fields (items list is omitted in getAllPlans for performance)
     val totalItems: Int? = null,
     val purchasedCount: Int? = null,

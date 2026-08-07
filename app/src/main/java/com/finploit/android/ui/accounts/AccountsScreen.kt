@@ -66,6 +66,7 @@ import com.finploit.android.ui.theme.GreenPrimary
 import com.finploit.android.ui.theme.SurfaceDark
 import com.finploit.android.ui.theme.TextPrimary
 import com.finploit.android.ui.theme.TextSecondary
+import com.finploit.android.ui.theme.TextDisabled
 import com.finploit.android.ui.theme.currencyConfigByCode
 import com.finploit.android.util.filterAmountInput
 import com.finploit.android.util.parseAmountInput
@@ -324,7 +325,10 @@ private fun AccountForm(
         OutlinedTextField(
             value = balance,
             onValueChange = { balance = filterAmountInput(it) },
-            label = { Text("Saldo atual (opcional)") },
+            // Já não é "saldo atual": os lançamentos somam-se por cima deste
+            // valor (C5). Escrever aqui o saldo do banco de hoje seria contar
+            // os movimentos duas vezes.
+            label = { Text("Saldo inicial (opcional)") },
             placeholder = { Text("0,00") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
             singleLine = true,
@@ -403,11 +407,26 @@ private fun AccountCard(
             }
         }
         Spacer(Modifier.height(10.dp))
+        // Saldo derivado (C5): o valor escrito à mão é o ponto de partida e os
+        // lançamentos ligados à conta somam-se por cima. O campo manual não
+        // acompanhava nada e mentia a partir do primeiro movimento.
         Text(
-            cfg.format(account.balance),
+            cfg.format(account.currentBalance ?: account.balance),
             color = TextPrimary,
             fontWeight = FontWeight.Bold,
             fontSize = 20.sp,
+        )
+        val mov = account.movements
+        Text(
+            if (mov != null && mov.count > 0) {
+                "Início ${cfg.format(account.initialBalance ?: account.balance)} · " +
+                    "+${cfg.format(mov.income)} −${cfg.format(mov.expense)} " +
+                    "(${mov.count} ${if (mov.count == 1) "movimento" else "movimentos"})"
+            } else {
+                "Saldo inicial · sem lançamentos ligados a esta conta"
+            },
+            color = TextDisabled,
+            fontSize = 11.sp,
         )
         Spacer(Modifier.height(12.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {

@@ -6,6 +6,7 @@ import com.finploit.android.data.dto.MealPlanDayDto
 import com.finploit.android.data.dto.MealPlanDto
 import com.finploit.android.data.dto.MealPreferencesDto
 import com.finploit.android.data.dto.MealShoppingItemDto
+import com.finploit.android.data.dto.MealShoppingListDto
 import com.finploit.android.data.dto.PreferenceOptionsDto
 import com.finploit.android.data.dto.SavePreferencesRequest
 import com.finploit.android.data.dto.SaveScheduleRequest
@@ -48,6 +49,14 @@ interface MealPlannerApi {
 
     @PATCH("meal-planner/items/batch-toggle")
     suspend fun batchToggleItems(@Body request: BatchToggleRequest)
+
+    /** Fecha a lista e lança a despesa do que se comprou (C4). */
+    @POST("meal-planner/shopping/close")
+    suspend fun closeShoppingList(@Body request: Map<String, String> = emptyMap()): MealShoppingListDto
+
+    /** Reabre a lista e apaga a despesa que ela gerou. */
+    @POST("meal-planner/shopping/reopen")
+    suspend fun reopenShoppingList(@Body request: Map<String, String> = emptyMap()): MealShoppingListDto
 
     @PATCH("meal-planner/shopping/reset")
     suspend fun resetShoppingList(): MealPlanDto

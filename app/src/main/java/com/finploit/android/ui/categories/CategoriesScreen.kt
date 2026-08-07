@@ -173,11 +173,11 @@ fun CategoriesScreen(
             existing = existing,
             isSaving = uiState.isSaving,
             onDismiss = { editorFor = null },
-            onSave = { name, description ->
+            onSave = { name, description, isBusinessIncome ->
                 if (existing != null) {
-                    viewModel.update(existing.id, name, description)
+                    viewModel.update(existing.id, name, description, isBusinessIncome)
                 } else {
-                    viewModel.create(name, description)
+                    viewModel.create(name, description, isBusinessIncome)
                 }
                 editorFor = null
             },
@@ -280,10 +280,13 @@ private fun CategoryEditorDialog(
     existing: FinanceCategoryDto?,
     isSaving: Boolean,
     onDismiss: () -> Unit,
-    onSave: (name: String, description: String?) -> Unit,
+    onSave: (name: String, description: String?, isBusinessIncome: Boolean) -> Unit,
 ) {
     var name by remember { mutableStateOf(existing?.name ?: "") }
     var description by remember { mutableStateOf("") }
+    // C6: é esta marca que diz ao fiscal o que somar. Sem ela, o limiar do
+    // art. 53.º compara-se com um número escrito à mão no perfil.
+    var isBusinessIncome by remember { mutableStateOf(existing?.isBusinessIncome ?: false) }
     val canSave = name.trim().isNotEmpty() && !isSaving
 
     AlertDialog(
@@ -314,11 +317,28 @@ private fun CategoryEditorDialog(
                     modifier = Modifier.fillMaxWidth(),
                     colors = editorFieldColors(),
                 )
+                Spacer(Modifier.height(12.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Switch(
+                        checked = isBusinessIncome,
+                        onCheckedChange = { isBusinessIncome = it },
+                        colors = SwitchDefaults.colors(checkedThumbColor = GreenPrimary),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Column {
+                        Text("Faturação da atividade", color = TextPrimary, fontSize = 13.sp)
+                        Text(
+                            "As receitas desta categoria contam para o volume anual do perfil fiscal. Não marque salários nem reembolsos.",
+                            color = TextSecondary,
+                            fontSize = 11.sp,
+                        )
+                    }
+                }
             }
         },
         confirmButton = {
             Button(
-                onClick = { if (canSave) onSave(name.trim(), description) },
+                onClick = { if (canSave) onSave(name.trim(), description, isBusinessIncome) },
                 enabled = canSave,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = GreenPrimary,

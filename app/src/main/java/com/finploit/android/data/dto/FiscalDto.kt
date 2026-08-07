@@ -28,6 +28,11 @@ data class FiscalProfileDto(
     val fiscalNumber: String? = null,
     val activityCode: String? = null,
     val annualRevenue: Double = 0.0,
+    /** De onde saiu o volume acima: dos lançamentos ou do campo do perfil (C6). */
+    val revenueSource: String? = null,
+    val ledgerRevenueEur: Double? = null,
+    val manualRevenue: Double? = null,
+    val revenueYear: Int? = null,
     val thresholdEur: Double? = null,
     val immediateExitThresholdEur: Double? = null,
     val currency: String? = null,

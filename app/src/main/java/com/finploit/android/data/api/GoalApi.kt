@@ -1,6 +1,8 @@
 package com.finploit.android.data.api
 
 import com.finploit.android.data.dto.CreateGoalRequest
+import com.finploit.android.data.dto.DepositRequest
+import com.finploit.android.data.dto.DepositResultDto
 import com.finploit.android.data.dto.GoalDto
 import com.finploit.android.data.dto.UpdateGoalPaceRequest
 import retrofit2.http.Body
@@ -29,4 +31,11 @@ interface GoalApi {
 
     @DELETE("goals/{id}")
     suspend fun deleteGoal(@Path("id") id: Int)
+
+    /** Depositar: o servidor cria a despesa e sobe a meta na mesma transação. */
+    @POST("goals/{id}/deposit")
+    suspend fun deposit(
+        @Path("id") id: Int,
+        @Body request: DepositRequest,
+    ): DepositResultDto
 }

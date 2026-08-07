@@ -4,6 +4,7 @@ import com.finploit.android.BuildConfig
 import com.finploit.android.data.api.AnalysisApi
 import com.finploit.android.data.api.AuthApi
 import com.finploit.android.data.api.BankAccountApi
+import com.finploit.android.data.api.BudgetApi
 import com.finploit.android.data.api.BillsApi
 import com.finploit.android.data.api.CoupleApi
 import com.finploit.android.data.api.AuthInterceptor
@@ -109,6 +110,11 @@ object NetworkModule {
     @Singleton
     fun provideBankAccountApi(retrofit: Retrofit): BankAccountApi =
         retrofit.create(BankAccountApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideBudgetApi(retrofit: Retrofit): BudgetApi =
+        retrofit.create(BudgetApi::class.java)
 
     @Provides
     @Singleton

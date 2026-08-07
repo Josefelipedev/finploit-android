@@ -76,6 +76,8 @@ data class MealPlannerUiState(
     val isEnrichingPrices: Boolean = false,
     val enrichedAt: Long? = null,
     val isResettingShopping: Boolean = false,
+    /** A fechar (ou reabrir) a lista de compras do cardápio (C4). */
+    val isClosingShopping: Boolean = false,
     val shoppingFilter: ShoppingFilter = ShoppingFilter.PENDING,
     val collapsedCategories: Set<String> = emptySet(),
     val pantryItemCount: Int = 0,
@@ -866,6 +868,54 @@ class MealPlannerViewModel @Inject constructor(
                 }
                 .onFailure {
                     _uiState.value = _uiState.value.copy(isResettingShopping = false)
+                }
+        }
+    }
+
+    /**
+     * Fecha a lista e lança a despesa do que se comprou (C4).
+     *
+     * O `actualPrice` de cada item era gravado e morria ali: o cardápio sabia o
+     * preço real da comida e não o dizia a ninguém. O total é somado no
+     * servidor, a partir do preço pago ou do estimado.
+     */
+    fun closeShoppingList() {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isClosingShopping = true)
+            repository.closeShoppingList()
+                .onSuccess {
+                    _uiState.value = _uiState.value.copy(
+                        isClosingShopping = false,
+                        snackbarMessage = "Lista fechada e despesa lançada.",
+                    )
+                    load()
+                }
+                .onFailure { e ->
+                    _uiState.value = _uiState.value.copy(
+                        isClosingShopping = false,
+                        snackbarMessage = e.message ?: "Não foi possível fechar a lista.",
+                    )
+                }
+        }
+    }
+
+    /** Reabre a lista e apaga a despesa que ela tinha gerado. */
+    fun reopenShoppingList() {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isClosingShopping = true)
+            repository.reopenShoppingList()
+                .onSuccess {
+                    _uiState.value = _uiState.value.copy(
+                        isClosingShopping = false,
+                        snackbarMessage = "Lista reaberta — a despesa foi apagada.",
+                    )
+                    load()
+                }
+                .onFailure { e ->
+                    _uiState.value = _uiState.value.copy(
+                        isClosingShopping = false,
+                        snackbarMessage = e.message ?: "Não foi possível reabrir a lista.",
+                    )
                 }
         }
     }

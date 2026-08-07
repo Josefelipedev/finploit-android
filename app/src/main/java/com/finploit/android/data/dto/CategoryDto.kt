@@ -6,6 +6,8 @@ data class CreateCategoryRequest(
     val color: String? = null,
     val description: String? = null,
     val isActive: Boolean? = true,
+    /** Receitas desta categoria contam como faturação da atividade (C6). */
+    val isBusinessIncome: Boolean? = null,
 )
 
 data class UpdateCategoryRequest(
@@ -14,4 +16,5 @@ data class UpdateCategoryRequest(
     val color: String? = null,
     val description: String? = null,
     val isActive: Boolean? = null,
+    val isBusinessIncome: Boolean? = null,
 )

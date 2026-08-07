@@ -6,6 +6,11 @@ data class FinanceCategoryDto(
     val color: String? = null,
     val iconName: String? = null,
     val isActive: Boolean = true,
+    /**
+     * Receitas desta categoria contam como faturação da atividade (C6) — é
+     * isto que o módulo fiscal soma para o limiar do art. 53.º.
+     */
+    val isBusinessIncome: Boolean = false,
 )
 
 data class UpdateFinanceRequest(

@@ -2,8 +2,10 @@ package com.finploit.android.ui.budget
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.finploit.android.data.local.entity.BudgetLimitEntity
+import com.finploit.android.data.dto.BudgetLimitDto
+import com.finploit.android.data.dto.FinanceCategoryDto
 import com.finploit.android.data.repository.BudgetRepository
+import com.finploit.android.data.repository.FinanceCategoryRepository
 import com.finploit.android.data.repository.FinanceRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
@@ -11,28 +13,33 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class BudgetUiState(
-    val limits: List<BudgetLimitEntity> = emptyList(),
+    val limits: List<BudgetLimitDto> = emptyList(),
+    /** As categorias do workspace, para escolher a que leva limite. */
+    val categories: List<FinanceCategoryDto> = emptyList(),
     /** categoria (em minúsculas) -> gasto do mês, na moeda do utilizador */
     val monthlySummary: Map<String, Double> = emptyMap(),
     val displayCurrency: String? = null,
     val unconvertedCurrencies: List<String> = emptyList(),
     val showAddDialog: Boolean = false,
-    val editingLimit: BudgetLimitEntity? = null,
+    val editingLimit: BudgetLimitDto? = null,
+    val isLoading: Boolean = true,
     val isSaving: Boolean = false,
+    val error: String? = null,
 )
 
 /**
  * O gasto por categoria vem do `/finance/summary`, já convertido para a moeda
  * do utilizador — somar a listagem no cliente misturava moedas.
  *
- * A chave do mapa é o nome da categoria em minúsculas: os limites guardados
- * localmente não têm o id real da categoria (são criados com `hashCode()` do
- * nome), e a versão anterior indexava por `"Cat $id"` enquanto o ecrã procurava
- * pelo nome — nunca havia correspondência e cada limite aparecia com 0 gasto.
+ * Os limites vêm do servidor (C1). Antes viviam numa base Room local e a
+ * categoria era texto livre, identificada pelo `hashCode()` do nome: dois
+ * telemóveis nunca concordavam, e o casal via orçamentos diferentes. Agora
+ * escolhe-se uma categoria a sério, que é o que o servidor guarda.
  */
 @HiltViewModel
 class BudgetLimitsViewModel @Inject constructor(
     private val budgetRepository: BudgetRepository,
+    private val categoryRepository: FinanceCategoryRepository,
     private val financeRepository: FinanceRepository,
 ) : ViewModel() {
 
@@ -40,9 +47,21 @@ class BudgetLimitsViewModel @Inject constructor(
     val state: StateFlow<BudgetUiState> = _state.asStateFlow()
 
     init {
+        load()
+    }
+
+    fun load() {
         viewModelScope.launch {
-            budgetRepository.getAll().collect { limits ->
-                _state.update { it.copy(limits = limits) }
+            _state.update { it.copy(isLoading = true, error = null) }
+            val limits = budgetRepository.getAll()
+            val categories = categoryRepository.getCategories()
+            _state.update {
+                it.copy(
+                    isLoading = false,
+                    limits = limits.getOrDefault(emptyList()),
+                    categories = categories.getOrDefault(emptyList()),
+                    error = limits.exceptionOrNull()?.message,
+                )
             }
         }
         loadMonthlySummary()
@@ -71,7 +90,7 @@ class BudgetLimitsViewModel @Inject constructor(
         }
     }
 
-    fun showAddDialog(limit: BudgetLimitEntity? = null) {
+    fun showAddDialog(limit: BudgetLimitDto? = null) {
         _state.update { it.copy(showAddDialog = true, editingLimit = limit) }
     }
 
@@ -79,15 +98,35 @@ class BudgetLimitsViewModel @Inject constructor(
         _state.update { it.copy(showAddDialog = false, editingLimit = null) }
     }
 
-    fun save(categoryId: Int, categoryName: String, monthlyLimit: Double) {
+    fun save(categoryId: Int, monthlyLimit: Double) {
         viewModelScope.launch {
-            _state.update { it.copy(isSaving = true) }
-            budgetRepository.upsert(categoryId, categoryName, monthlyLimit)
-            _state.update { it.copy(isSaving = false, showAddDialog = false, editingLimit = null) }
+            _state.update { it.copy(isSaving = true, error = null) }
+            budgetRepository.upsert(categoryId, monthlyLimit)
+                .onSuccess {
+                    _state.update {
+                        it.copy(isSaving = false, showAddDialog = false, editingLimit = null)
+                    }
+                    load()
+                }
+                .onFailure { e ->
+                    // Gravar pode falhar: antes era escrita local e o ecrã dizia
+                    // sempre que tinha guardado.
+                    _state.update {
+                        it.copy(isSaving = false, error = e.message ?: "Não foi possível guardar.")
+                    }
+                }
         }
     }
 
     fun delete(categoryId: Int) {
-        viewModelScope.launch { budgetRepository.delete(categoryId) }
+        viewModelScope.launch {
+            budgetRepository.delete(categoryId)
+                .onSuccess { load() }
+                .onFailure { e ->
+                    _state.update { it.copy(error = e.message ?: "Não foi possível remover.") }
+                }
+        }
     }
+
+    fun clearError() = _state.update { it.copy(error = null) }
 }

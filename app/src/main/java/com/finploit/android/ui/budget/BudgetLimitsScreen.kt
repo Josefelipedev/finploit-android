@@ -20,7 +20,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.finploit.android.data.local.entity.BudgetLimitEntity
+import com.finploit.android.data.dto.BudgetLimitDto
+import com.finploit.android.data.dto.FinanceCategoryDto
 import com.finploit.android.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -72,8 +73,14 @@ fun BudgetLimitsScreen(
                         )
                     }
                 }
+                if (state.error != null) {
+                    item {
+                        Text("⚠️ ${state.error}", color = ExpenseRed, fontSize = 12.sp)
+                    }
+                }
                 items(state.limits) { limit ->
-                    val spent = state.monthlySummary[limit.categoryName.trim().lowercase()] ?: 0.0
+                    val spent =
+                        state.monthlySummary[limit.categoryName.orEmpty().trim().lowercase()] ?: 0.0
                     val progress = if (limit.monthlyLimit > 0) (spent / limit.monthlyLimit).coerceIn(0.0, 1.0) else 0.0
                     val isOverBudget = spent > limit.monthlyLimit
                     val isNearLimit = progress >= limit.alertAt / 100.0
@@ -96,8 +103,12 @@ fun BudgetLimitsScreen(
         if (state.showAddDialog) {
             AddBudgetLimitDialog(
                 initial = state.editingLimit,
+                categories = state.categories,
+                // Uma categoria só pode ter um limite (a chave do servidor é ela).
+                usedCategoryIds = state.limits.map { it.categoryId }.toSet(),
                 currency = currency,
-                onConfirm = { catId, catName, amount -> viewModel.save(catId, catName, amount) },
+                isSaving = state.isSaving,
+                onConfirm = { catId, amount -> viewModel.save(catId, amount) },
                 onDismiss = viewModel::hideDialog,
             )
         }
@@ -106,7 +117,7 @@ fun BudgetLimitsScreen(
 
 @Composable
 private fun BudgetLimitCard(
-    limit: BudgetLimitEntity,
+    limit: BudgetLimitDto,
     spent: Double,
     currency: CurrencyConfig,
     progress: Float,
@@ -129,7 +140,12 @@ private fun BudgetLimitCard(
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(limit.categoryName, color = TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                    Text(
+                        limit.categoryName ?: "Categoria",
+                        color = TextPrimary,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 15.sp,
+                    )
                     Text(
                         "${currency.format(spent)} de ${currency.format(limit.monthlyLimit)}",
                         color = color,
@@ -164,38 +180,89 @@ private fun BudgetLimitCard(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AddBudgetLimitDialog(
-    initial: BudgetLimitEntity?,
+    initial: BudgetLimitDto?,
+    categories: List<FinanceCategoryDto>,
+    usedCategoryIds: Set<Int>,
     currency: CurrencyConfig,
-    onConfirm: (Int, String, Double) -> Unit,
+    isSaving: Boolean,
+    onConfirm: (Int, Double) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var categoryName by remember { mutableStateOf(initial?.categoryName ?: "") }
+    // A categoria deixou de ser texto livre: o limite vive no servidor e a
+    // chave é a categoria a sério. Antes usava-se o `hashCode()` do nome, que
+    // não correspondia a categoria nenhuma e só existia neste telemóvel.
+    var categoryId by remember { mutableStateOf(initial?.categoryId) }
     var amount by remember { mutableStateOf(initial?.monthlyLimit?.toString() ?: "") }
+    var menuExpanded by remember { mutableStateOf(false) }
+
+    val escolhiveis = remember(categories, usedCategoryIds, initial) {
+        categories.filter { it.id == initial?.categoryId || it.id !in usedCategoryIds }
+    }
+    val nomeEscolhido = categories.find { it.id == categoryId }?.name ?: ""
 
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = CardBackground,
         title = {
-            Text(if (initial == null) "Novo Limite" else "Editar Limite", color = TextPrimary, fontWeight = FontWeight.Bold)
+            Text(
+                if (initial == null) "Novo Limite" else "Editar Limite",
+                color = TextPrimary,
+                fontWeight = FontWeight.Bold,
+            )
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(
-                    value = categoryName,
-                    onValueChange = { categoryName = it },
-                    label = { Text("Categoria", color = TextDisabled) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = GreenPrimary,
-                        unfocusedBorderColor = TextDisabled.copy(alpha = 0.5f),
-                        focusedTextColor = TextPrimary,
-                        unfocusedTextColor = TextPrimary,
-                        cursorColor = GreenPrimary,
-                    ),
-                )
+                if (escolhiveis.isEmpty() && initial == null) {
+                    Text(
+                        "Todas as categorias já têm limite. Apague um para definir outro.",
+                        color = TextDisabled,
+                        fontSize = 13.sp,
+                    )
+                }
+                ExposedDropdownMenuBox(
+                    expanded = menuExpanded,
+                    onExpandedChange = { if (initial == null) menuExpanded = it },
+                ) {
+                    OutlinedTextField(
+                        value = nomeEscolhido,
+                        onValueChange = {},
+                        readOnly = true,
+                        enabled = initial == null,
+                        label = { Text("Categoria", color = TextDisabled) },
+                        trailingIcon = {
+                            ExposedDropdownMenuDefaults.TrailingIcon(expanded = menuExpanded)
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor(MenuAnchorType.PrimaryNotEditable),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = GreenPrimary,
+                            unfocusedBorderColor = TextDisabled.copy(alpha = 0.5f),
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary,
+                            disabledTextColor = TextPrimary,
+                            cursorColor = GreenPrimary,
+                        ),
+                    )
+                    ExposedDropdownMenu(
+                        expanded = menuExpanded,
+                        onDismissRequest = { menuExpanded = false },
+                        containerColor = SurfaceDark,
+                    ) {
+                        escolhiveis.forEach { cat ->
+                            DropdownMenuItem(
+                                text = { Text(cat.name, color = TextPrimary) },
+                                onClick = {
+                                    categoryId = cat.id
+                                    menuExpanded = false
+                                },
+                            )
+                        }
+                    }
+                }
                 OutlinedTextField(
                     value = amount,
                     onValueChange = { amount = it },
@@ -215,14 +282,19 @@ private fun AddBudgetLimitDialog(
         },
         confirmButton = {
             TextButton(
+                enabled = !isSaving,
                 onClick = {
-                    val amt = amount.toDoubleOrNull() ?: return@TextButton
-                    if (categoryName.isNotBlank() && amt > 0) {
-                        onConfirm(initial?.categoryId ?: categoryName.hashCode(), categoryName.trim(), amt)
-                    }
+                    // O mesmo parser do resto da app: o último separador manda.
+                    val amt = com.finploit.android.util.parseAmountInput(amount) ?: return@TextButton
+                    val id = categoryId ?: return@TextButton
+                    if (amt > 0) onConfirm(id, amt)
                 },
             ) {
-                Text("Guardar", color = GreenPrimary, fontWeight = FontWeight.Bold)
+                Text(
+                    if (isSaving) "A guardar..." else "Guardar",
+                    color = GreenPrimary,
+                    fontWeight = FontWeight.Bold,
+                )
             }
         },
         dismissButton = {

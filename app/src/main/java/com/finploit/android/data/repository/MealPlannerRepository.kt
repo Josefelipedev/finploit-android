@@ -8,6 +8,7 @@ import com.finploit.android.data.dto.MealPlanDayDto
 import com.finploit.android.data.dto.MealPlanDto
 import com.finploit.android.data.dto.MealPreferencesDto
 import com.finploit.android.data.dto.MealShoppingItemDto
+import com.finploit.android.data.dto.MealShoppingListDto
 import com.finploit.android.data.dto.PreferenceOptionsDto
 import com.finploit.android.data.dto.SavePreferencesRequest
 import com.finploit.android.data.dto.SaveScheduleRequest
@@ -55,6 +56,14 @@ class MealPlannerRepository @Inject constructor(
     }
 
     suspend fun toggleItem(id: Int): Result<MealShoppingItemDto> = runCatching { api.toggleItem(id) }
+
+    /** Fecha a lista do cardápio e lança a despesa (C4). */
+    suspend fun closeShoppingList(): Result<MealShoppingListDto> =
+        runCatching { api.closeShoppingList() }
+
+    /** Reabre a lista e apaga a despesa. */
+    suspend fun reopenShoppingList(): Result<MealShoppingListDto> =
+        runCatching { api.reopenShoppingList() }
 
     suspend fun batchToggleItems(itemIds: List<Int>): Result<Unit> = runCatching { api.batchToggleItems(BatchToggleRequest(itemIds)) }
 

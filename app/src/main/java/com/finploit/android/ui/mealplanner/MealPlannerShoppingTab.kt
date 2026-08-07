@@ -94,6 +94,11 @@ internal fun ShoppingTab(
     shoppingFilter: ShoppingFilter = ShoppingFilter.PENDING,
     onResetShopping: () -> Unit = {},
     isResettingShopping: Boolean = false,
+    /** Fechar a lista lança a despesa do que se comprou (C4). */
+    closedAt: String? = null,
+    onCloseShopping: () -> Unit = {},
+    onReopenShopping: () -> Unit = {},
+    isClosingShopping: Boolean = false,
     onFilterChange: (ShoppingFilter) -> Unit = {},
     collapsedCategories: Set<String> = emptySet(),
     onToggleCategory: (String) -> Unit = {},
@@ -255,6 +260,11 @@ internal fun ShoppingTab(
     val remainingEstimate = items.filter { !it.purchased }.sumOf { i ->
         enrichedItems[i.name.trim().lowercase()]?.bestPrice ?: i.estimatedPrice ?: 0.0
     }
+    // O que a despesa vai valer ao fechar (C4): o preço pago quando existe, o
+    // estimado quando ainda não se preencheu. A mesma conta que o servidor faz.
+    val spentSoFar = items.filter { it.purchased }.sumOf { i ->
+        i.actualPrice ?: i.estimatedPrice ?: 0.0
+    }
 
     val enrichItems = items.filter { !it.purchased }.map { i ->
         EnrichItem(name = i.name, quantity = i.quantity, unit = i.unit, estimatedPrice = i.estimatedPrice ?: 0.0)
@@ -371,6 +381,46 @@ internal fun ShoppingTab(
                                 }
                             }
                         }
+                    }
+                    // C4: fechar a lista é o que faz o cardápio chegar aos
+                    // gastos. O total é o preço pago (ou o estimado, quando
+                    // ainda não se preencheu) dos itens comprados.
+                    Spacer(Modifier.height(10.dp))
+                    if (closedAt != null) {
+                        Text(
+                            "Lista fechada — ${currencyConfig.format(spentSoFar)} já lançados como despesa.",
+                            color = GreenPrimary,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            if (isClosingShopping) "A reabrir..." else "↩︎ Reabrir (apaga a despesa)",
+                            color = TextDisabled,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(TextDisabled.copy(alpha = 0.12f))
+                                .clickable(enabled = !isClosingShopping) { onReopenShopping() }
+                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                        )
+                    } else if (purchased > 0) {
+                        Text(
+                            if (isClosingShopping) {
+                                "A fechar..."
+                            } else {
+                                "💸 Fechar e lançar ${currencyConfig.format(spentSoFar)}"
+                            },
+                            color = BackgroundDark,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(GreenPrimary)
+                                .clickable(enabled = !isClosingShopping) { onCloseShopping() }
+                                .padding(horizontal = 10.dp, vertical = 5.dp),
+                        )
                     }
                     enrichedAt?.let { ts ->
                         val time = remember(ts) { SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(ts)) }
