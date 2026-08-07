@@ -143,10 +143,37 @@ data class FinanceItemDto(
     val convertedAmount: Double? = null,
     /** Quem lançou. No workspace do casal a lista mistura os dois. */
     val userId: Int? = null,
+    /** Conta a pagar/receber que este lançamento quita; null = lançamento solto. */
+    val billOccurrenceId: Int? = null,
+    /** A mesma conta já resolvida pela API (descrição e vencimento). */
+    val bill: LinkedBillDto? = null,
 ) {
     /** Data do movimento (recuo para a de criação, como a API faz). */
     val movementDate: String get() = (referenceDate ?: createdAt).take(10)
 
     /** Valor somável: o convertido quando a API o mandou, senão o original. */
     val amountForTotals: Double get() = convertedAmount ?: amount ?: 0.0
+}
+
+/**
+ * A conta que um lançamento quita (B5).
+ *
+ * Vem resolvida do servidor: o vínculo é por id solto nos dois sentidos, sem
+ * relação no schema, por isso o cliente não tem como ir buscar a descrição e o
+ * vencimento sozinho. Um registo servido do cache offline não a traz — nesse
+ * caso o crachá não aparece, em vez de se adivinhar.
+ */
+data class LinkedBillDto(
+    val id: Int,
+    val description: String,
+    val dueDate: String,
+    val status: String? = null,
+    val recurringId: Int? = null,
+) {
+    /** `2026-08-10T00:00:00.000Z` → `10/08`. */
+    val dueLabel: String
+        get() {
+            val partes = dueDate.take(10).split("-")
+            return if (partes.size == 3) "${partes[2]}/${partes[1]}" else dueDate
+        }
 }

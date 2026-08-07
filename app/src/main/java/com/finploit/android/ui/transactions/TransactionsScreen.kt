@@ -61,6 +61,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.finploit.android.data.dto.FinanceItemDto
+import com.finploit.android.ui.components.BillChip
 import com.finploit.android.ui.components.OwnerChip
 import com.finploit.android.ui.theme.CardBackground
 import com.finploit.android.ui.theme.ExpenseRed
@@ -112,7 +113,11 @@ fun TransactionsScreen(
     LaunchedEffect(pendingDeleteTx) {
         pendingDeleteTx?.let { tx ->
             val result = snackbarHostState.showSnackbar(
-                message = "Transação removida",
+                // Apagar um lançamento vinculado reverte a conta para pendente
+                // — o servidor já o fazia, mas em silêncio (B5). É a última
+                // hora para o dizer: depois disto a conta muda de estado.
+                message = tx.bill?.let { "Removida — a conta ${it.dueLabel} volta a pendente" }
+                    ?: "Transação removida",
                 actionLabel = "Desfazer",
                 duration = SnackbarDuration.Short,
             )
@@ -291,6 +296,11 @@ fun TransactionListItem(tx: FinanceItemDto, onClick: (() -> Unit)? = null) {
                     if (LocalOwnerNaming.current.nameOf(tx.userId) != null) {
                         Spacer(Modifier.width(8.dp))
                         OwnerChip(tx.userId)
+                    }
+                    // A outra ponta do lançamento: que conta é que ele quita.
+                    if (tx.bill != null) {
+                        Spacer(Modifier.width(8.dp))
+                        BillChip(tx.bill)
                     }
                 }
             }
