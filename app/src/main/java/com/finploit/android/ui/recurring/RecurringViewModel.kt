@@ -7,12 +7,36 @@ import com.finploit.android.data.dto.FinanceCategoryDto
 import com.finploit.android.data.dto.RecurringTransactionDto
 import com.finploit.android.data.repository.FinanceCategoryRepository
 import com.finploit.android.data.repository.RecurringRepository
+import com.finploit.android.ui.theme.currencyConfigByCode
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import org.json.JSONObject
+import retrofit2.HttpException
 import javax.inject.Inject
+
+/**
+ * A explicação que o servidor deu para a recusa.
+ *
+ * O envelope de erro do Nest é `{ success: false, message: "..." }` e o
+ * interceptor que desembrulha as respostas só trata das bem-sucedidas — sem
+ * isto, um 400 com a razão escrita chegava ao ecrã como "HTTP 400".
+ */
+private fun serverMessage(e: Throwable): String? {
+    val body = (e as? HttpException)?.response()?.errorBody()?.string() ?: return null
+    return runCatching {
+        val message = JSONObject(body).opt("message")
+        when (message) {
+            is String -> message.takeIf { it.isNotBlank() }
+            is org.json.JSONArray -> (0 until message.length())
+                .joinToString(". ") { message.optString(it) }
+                .takeIf { it.isNotBlank() }
+            else -> null
+        }
+    }.getOrNull()
+}
 
 data class RecurringUiState(
     val isLoading: Boolean = false,
@@ -23,6 +47,11 @@ data class RecurringUiState(
     val saveSuccess: Boolean = false,
     val saveError: String? = null,
     val deletingIds: Set<Int> = emptySet(),
+    /** Recorrentes a liquidar agora — o botão não pode ser tocado duas vezes. */
+    val settlingIds: Set<Int> = emptySet(),
+    /** Resultado da última quitação, para o ecrã o poder dizer. */
+    val settleMessage: String? = null,
+    val settleError: String? = null,
 )
 
 @HiltViewModel
@@ -160,6 +189,47 @@ class RecurringViewModel @Inject constructor(
                 }
                 .onFailure { _uiState.value = _uiState.value.copy(isSaving = false, saveError = it.message) }
         }
+    }
+
+    /**
+     * "Paguei tudo": liquida de uma vez o que falta do parcelamento.
+     *
+     * O servidor apaga as parcelas por pagar, cria UMA conta paga com o valor em
+     * falta (data de hoje) e o lançamento correspondente, e fecha a recorrente.
+     * A lista é recarregada porque muda tudo o que ela mostra: o pago, o falta
+     * pagar e o compromisso mensal.
+     */
+    fun settle(id: Int) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(
+                settlingIds = _uiState.value.settlingIds + id,
+                settleMessage = null,
+                settleError = null,
+            )
+            repository.settle(id)
+                .onSuccess { result ->
+                    val moeda = currencyConfigByCode(result.currency ?: "BRL")
+                    val recebe = result.recurring?.type == "income"
+                    _uiState.value = _uiState.value.copy(
+                        settlingIds = _uiState.value.settlingIds - id,
+                        settleMessage = (if (recebe) "Recebido: " else "Quitado: ") +
+                            "${moeda.format(result.settledAmount)} lançados hoje.",
+                    )
+                    loadAll()
+                }
+                .onFailure { e ->
+                    _uiState.value = _uiState.value.copy(
+                        settlingIds = _uiState.value.settlingIds - id,
+                        // O servidor explica melhor ("já está quitada", "não tem
+                        // fim definido") do que um "erro" que não diz o que fazer.
+                        settleError = serverMessage(e) ?: "Não foi possível liquidar. Tente novamente.",
+                    )
+                }
+        }
+    }
+
+    fun clearSettleFeedback() {
+        _uiState.value = _uiState.value.copy(settleMessage = null, settleError = null)
     }
 
     fun delete(id: Int) {

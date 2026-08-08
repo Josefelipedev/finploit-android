@@ -27,6 +27,17 @@ data class RecurringTransactionDto(
     val paidTotal: Double? = null,
 )
 
+/** O que a quitação ("paguei tudo") liquidou de facto. */
+data class SettleRecurringResultDto(
+    val recurring: RecurringTransactionDto? = null,
+    /** Valor liquidado, na moeda da recorrente. */
+    val settledAmount: Double = 0.0,
+    val currency: String? = null,
+    /** Lançamento único criado no razão. */
+    val financeId: Int? = null,
+    val billOccurrenceId: Int? = null,
+)
+
 data class CreateRecurringRequest(
     val description: String,
     val amount: Double,

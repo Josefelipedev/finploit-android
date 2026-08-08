@@ -1,6 +1,7 @@
 package com.finploit.android.ui.recurring
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,8 +23,10 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Repeat
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -37,6 +40,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberSwipeToDismissBoxState
@@ -79,6 +83,20 @@ fun RecurringScreen(viewModel: RecurringViewModel, onBack: (() -> Unit)? = null)
         return
     }
 
+    // "Paguei tudo": pede confirmação antes, porque isto cria uma despesa de uma
+    // vez só — pode ser a maior do mês — e fecha a recorrente.
+    var settleTarget by remember { mutableStateOf<RecurringTransactionDto?>(null) }
+    settleTarget?.let { alvo ->
+        SettleDialog(
+            tx = alvo,
+            onConfirm = {
+                viewModel.settle(alvo.id)
+                settleTarget = null
+            },
+            onDismiss = { settleTarget = null },
+        )
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -103,6 +121,26 @@ fun RecurringScreen(viewModel: RecurringViewModel, onBack: (() -> Unit)? = null)
                 }
             }
         )
+
+        // O resultado da quitação (ou a razão da recusa, que o servidor explica
+        // melhor do que um "erro"). Toca-se para dispensar.
+        (uiState.settleMessage ?: uiState.settleError)?.let { aviso ->
+            val erro = uiState.settleError != null
+            Text(
+                text = aviso,
+                color = if (erro) ExpenseRed else IncomeGreen,
+                fontSize = 13.sp,
+                modifier = Modifier
+                    .padding(horizontal = 16.dp, vertical = 4.dp)
+                    .fillMaxWidth()
+                    .background(
+                        (if (erro) ExpenseRed else IncomeGreen).copy(alpha = 0.12f),
+                        RoundedCornerShape(12.dp),
+                    )
+                    .clickable { viewModel.clearSettleFeedback() }
+                    .padding(12.dp),
+            )
+        }
 
         when {
             uiState.isLoading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -134,8 +172,10 @@ fun RecurringScreen(viewModel: RecurringViewModel, onBack: (() -> Unit)? = null)
                     SwipeToDeleteRecurring(
                         tx = tx,
                         isDeleting = tx.id in uiState.deletingIds,
+                        isSettling = tx.id in uiState.settlingIds,
                         onDelete = { viewModel.delete(tx.id) },
                         onEdit = { editing = tx },
+                        onSettle = { settleTarget = tx },
                     )
                 }
                 item { Spacer(Modifier.height(80.dp)) }
@@ -149,8 +189,10 @@ fun RecurringScreen(viewModel: RecurringViewModel, onBack: (() -> Unit)? = null)
 private fun SwipeToDeleteRecurring(
     tx: RecurringTransactionDto,
     isDeleting: Boolean,
+    isSettling: Boolean,
     onDelete: () -> Unit,
     onEdit: () -> Unit,
+    onSettle: () -> Unit,
 ) {
     val dismissState = rememberSwipeToDismissBoxState(
         confirmValueChange = { value ->
@@ -184,12 +226,17 @@ private fun SwipeToDeleteRecurring(
             }
         },
     ) {
-        RecurringCard(tx, onEdit)
+        RecurringCard(tx, onEdit, isSettling, onSettle)
     }
 }
 
 @Composable
-private fun RecurringCard(tx: RecurringTransactionDto, onEdit: () -> Unit) {
+private fun RecurringCard(
+    tx: RecurringTransactionDto,
+    onEdit: () -> Unit,
+    isSettling: Boolean,
+    onSettle: () -> Unit,
+) {
     val isIncome = tx.type == "income"
     val color = if (isIncome) IncomeGreen else ExpenseRed
     val icon = if (isIncome) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward
@@ -280,8 +327,89 @@ private fun RecurringCard(tx: RecurringTransactionDto, onEdit: () -> Unit) {
                     )
                 }
             }
+
+            // "Paguei tudo": o financiamento pago antes do tempo sai em UM
+            // pagamento, e fechá-lo aqui poupa abrir as Contas mês a mês a
+            // carregar em Pagar tantas vezes quantas as parcelas que faltam.
+            // Só aparece onde há um fim contratado por liquidar.
+            if (tx.canSettle()) {
+                IconButton(onClick = onSettle, enabled = !isSettling) {
+                    if (isSettling) {
+                        CircularProgressIndicator(
+                            color = IncomeGreen,
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp,
+                        )
+                    } else {
+                        Icon(
+                            Icons.Default.DoneAll,
+                            contentDescription = if (isIncome) "Recebi tudo" else "Paguei tudo",
+                            tint = IncomeGreen,
+                        )
+                    }
+                }
+            }
         }
     }
+}
+
+/**
+ * A confirmação do "paguei tudo".
+ *
+ * Diz o valor e os dois efeitos — o lançamento de hoje e o fim da recorrente —
+ * porque quem carrega no botão precisa de saber os dois antes, e não depois de
+ * ver a maior despesa do mês aparecer do nada.
+ */
+@Composable
+private fun SettleDialog(
+    tx: RecurringTransactionDto,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val recebe = tx.type == "income"
+    val currency = tx.currency?.let { currencyConfigByCode(it) } ?: LocalCurrencyConfig.current
+    val valor = currency.format(tx.remainingTotal() ?: 0.0)
+    val nome = tx.description ?: "esta recorrente"
+
+    AlertDialog(
+        containerColor = CardBackground,
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                if (recebe) "Recebi tudo" else "Paguei tudo",
+                color = TextPrimary,
+                fontWeight = FontWeight.Bold,
+            )
+        },
+        text = {
+            Text(
+                if (recebe) {
+                    "Liquidar os $valor que faltam receber de \"$nome\"? As parcelas por " +
+                        "receber ficam recebidas e é criada uma receita de $valor com a data " +
+                        "de hoje. A recorrente deixa de gerar novas contas."
+                } else {
+                    "Quitar os $valor que faltam de \"$nome\"? As parcelas por pagar ficam " +
+                        "pagas e é criada uma despesa de $valor com a data de hoje. A " +
+                        "recorrente deixa de gerar novas contas."
+                },
+                color = TextSecondary,
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text(
+                    if (recebe) "Recebi tudo" else "Paguei tudo",
+                    color = IncomeGreen,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancelar", color = TextSecondary)
+            }
+        },
+    )
 }
 
 /**

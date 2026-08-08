@@ -66,6 +66,19 @@ fun RecurringTransactionDto.remainingTotal(): Double? {
     return (total - (paidTotal ?: 0.0)).coerceAtLeast(0.0)
 }
 
+/**
+ * Dá para dizer "paguei tudo" a esta recorrente?
+ *
+ * Só faz sentido onde existe um fim: uma subscrição sem número de parcelas
+ * paga-se para sempre e não há "tudo" nenhum a liquidar. E não se quita o que
+ * já está quitado — nem uma recorrente que já terminou. Mesma regra da web
+ * (`utils/recurring.ts`).
+ */
+fun RecurringTransactionDto.canSettle(now: Date = Date()): Boolean {
+    val falta = remainingTotal() ?: return false
+    return falta > 0 && !isFinished(now)
+}
+
 /** O somatório das recorrentes ativas de UMA moeda. */
 data class RecurringTotals(
     val currency: String,
