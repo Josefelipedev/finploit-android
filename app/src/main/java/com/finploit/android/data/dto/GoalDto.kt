@@ -10,6 +10,8 @@ data class GoalDto(
     val startDate: String?,
     val endDate: String?,
     val userId: Int?,
+    /** A moeda em que a meta soma. Sem ela, os ecrãs escreviam "€" fixo. */
+    val currency: String? = null,
     /** Ritmo pretendido e ordem de prioridade (planeamento de longo prazo). */
     val monthlyContribution: Double? = null,
     val priority: Int? = null,

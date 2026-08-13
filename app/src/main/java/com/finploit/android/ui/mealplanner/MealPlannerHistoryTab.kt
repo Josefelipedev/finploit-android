@@ -136,7 +136,10 @@ internal fun HistoryTab(
                     if (newestCost != null && previousCost != null) {
                         val delta = newestCost - previousCost
                         val deltaColor = if (delta > 0) Color(0xFFEF5350) else GreenPrimary
-                        val deltaLabel = if (delta > 0) "▲ +€%.2f vs semana anterior".format(delta) else "▼ −€%.2f vs semana anterior".format(-delta)
+                        // O cardápio é orçamentado na moeda de quem o gera; "€" fixo
+                        // mentia a quem usa reais.
+                        val moeda = LocalCurrencyConfig.current
+                        val deltaLabel = if (delta > 0) "▲ +${moeda.format(delta)} vs semana anterior" else "▼ −${moeda.format(-delta)} vs semana anterior"
                         Row(
                             modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
                                 .background(deltaColor.copy(alpha = 0.08f))

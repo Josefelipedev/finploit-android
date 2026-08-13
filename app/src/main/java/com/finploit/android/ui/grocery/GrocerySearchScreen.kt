@@ -95,6 +95,18 @@ import com.finploit.android.ui.theme.TextDisabled
 import com.finploit.android.ui.theme.TextPrimary
 import com.finploit.android.ui.theme.TextSecondary
 
+/**
+ * Os preços deste ecrã são **em euros porque a fonte é em euros**: o scraper lê
+ * o Mercadona e o Pingo Doce, supermercados portugueses. Não é a moeda do
+ * utilizador — quem tem o perfil em reais vê aqui preços em euros, e está
+ * certo.
+ *
+ * ⚠️ Não trocar por `LocalCurrencyConfig`: isso reetiquetava preços em euros
+ * com o símbolo do real sem os converter, que é como um número passa a mentir.
+ * Se um dia o scraper cobrir outro país, a moeda passa a vir com o produto.
+ */
+private const val MOEDA_DO_MERCADO = "€"
+
 private val CHAIN_LABELS = mapOf(
     "continente" to "Continente",
     "auchan" to "Auchan",
@@ -589,7 +601,7 @@ private fun SearchContent(
                         val cheapest = displayProducts.minByOrNull { it.price ?: Double.MAX_VALUE }
                         if (cheapest?.price != null) {
                             Text(
-                                "Menor: €%.2f".format(cheapest.price),
+                                "Menor: $MOEDA_DO_MERCADO%.2f".format(cheapest.price),
                                 color = IncomeGreen,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
@@ -849,7 +861,7 @@ private fun PriceSummaryCard(
             ) {
                 Column {
                     Text("Estimativa IA", color = TextDisabled, fontSize = 11.sp)
-                    Text("€%.2f".format(estimated), color = TextSecondary, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                    Text("$MOEDA_DO_MERCADO%.2f".format(estimated), color = TextSecondary, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
                 }
                 Icon(
                     Icons.AutoMirrored.Filled.ArrowForward,
@@ -859,7 +871,7 @@ private fun PriceSummaryCard(
                 )
                 Column(horizontalAlignment = Alignment.End) {
                     Text("Melhor preço real", color = TextDisabled, fontSize = 11.sp)
-                    Text("€%.2f".format(best), color = IncomeGreen, fontWeight = FontWeight.Bold, fontSize = 22.sp)
+                    Text("$MOEDA_DO_MERCADO%.2f".format(best), color = IncomeGreen, fontWeight = FontWeight.Bold, fontSize = 22.sp)
                 }
             }
             if (savings > 0.1) {
@@ -876,7 +888,7 @@ private fun PriceSummaryCard(
                         Icon(Icons.Default.Star, contentDescription = null, tint = IncomeGreen, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(8.dp))
                         Text(
-                            "Poupas €%.2f comparando com os preços da IA".format(savings),
+                            "Poupas $MOEDA_DO_MERCADO%.2f comparando com os preços da IA".format(savings),
                             color = IncomeGreen,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold,
@@ -915,13 +927,13 @@ private fun BestStoreCard(chain: String, totalPrice: Double, savings: Double) {
                     fontSize = 14.sp,
                 )
                 Text(
-                    "Lista completa por €%.2f".format(totalPrice),
+                    "Lista completa por $MOEDA_DO_MERCADO%.2f".format(totalPrice),
                     color = TextSecondary,
                     fontSize = 12.sp,
                 )
             }
             Column(horizontalAlignment = Alignment.End) {
-                Text("-€%.2f".format(savings), color = IncomeGreen, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text("-$MOEDA_DO_MERCADO%.2f".format(savings), color = IncomeGreen, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 Text("vs IA", color = TextDisabled, fontSize = 10.sp)
             }
         }
@@ -954,7 +966,7 @@ private fun EnrichedItemCard(item: EnrichedShoppingItemDto, focusedStore: String
                     if (item.bestPrice != null) {
                         Column(horizontalAlignment = Alignment.End) {
                             Text(
-                                "€%.2f".format(item.bestPrice),
+                                "$MOEDA_DO_MERCADO%.2f".format(item.bestPrice),
                                 color = IncomeGreen,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 16.sp,
@@ -970,7 +982,7 @@ private fun EnrichedItemCard(item: EnrichedShoppingItemDto, focusedStore: String
                     } else {
                         Column(horizontalAlignment = Alignment.End) {
                             Text("Sem dados", color = TextDisabled, fontSize = 12.sp)
-                            Text("€%.2f est.".format(item.estimatedPrice), color = TextDisabled.copy(alpha = 0.6f), fontSize = 11.sp)
+                            Text("$MOEDA_DO_MERCADO%.2f est.".format(item.estimatedPrice), color = TextDisabled.copy(alpha = 0.6f), fontSize = 11.sp)
                         }
                     }
                 } else {
@@ -978,19 +990,19 @@ private fun EnrichedItemCard(item: EnrichedShoppingItemDto, focusedStore: String
                     if (focusedPrice != null) {
                         Column(horizontalAlignment = Alignment.End) {
                             Text(
-                                "€%.2f".format(focusedPrice),
+                                "$MOEDA_DO_MERCADO%.2f".format(focusedPrice),
                                 color = storeColor,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 16.sp,
                             )
                             if (item.bestSource != focusedStore && item.bestPrice != null) {
-                                Text("melhor: €%.2f".format(item.bestPrice), color = IncomeGreen.copy(alpha = 0.7f), fontSize = 10.sp)
+                                Text("melhor: $MOEDA_DO_MERCADO%.2f".format(item.bestPrice), color = IncomeGreen.copy(alpha = 0.7f), fontSize = 10.sp)
                             }
                         }
                     } else {
                         Column(horizontalAlignment = Alignment.End) {
                             Text("Indisponível", color = TextDisabled, fontSize = 12.sp)
-                            Text("€%.2f est.".format(item.estimatedPrice), color = TextDisabled.copy(alpha = 0.5f), fontSize = 11.sp)
+                            Text("$MOEDA_DO_MERCADO%.2f est.".format(item.estimatedPrice), color = TextDisabled.copy(alpha = 0.5f), fontSize = 11.sp)
                         }
                     }
                 }
@@ -1020,7 +1032,7 @@ private fun EnrichedItemCard(item: EnrichedShoppingItemDto, focusedStore: String
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                     Text(CHAIN_EMOJIS[source] ?: "•", fontSize = 10.sp)
                                     Text(
-                                        "€%.2f".format(cheapest.price),
+                                        "$MOEDA_DO_MERCADO%.2f".format(cheapest.price),
                                         color = when {
                                             isFocused -> color
                                             isBest -> IncomeGreen
@@ -1066,7 +1078,7 @@ private fun StoreComparisonChip(
             Text(label, color = if (selected) color else TextSecondary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
             if (total != null) {
                 Spacer(Modifier.height(2.dp))
-                Text("€%.2f".format(total), color = if (selected) color else TextDisabled, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                Text("$MOEDA_DO_MERCADO%.2f".format(total), color = if (selected) color else TextDisabled, fontSize = 13.sp, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -1135,7 +1147,7 @@ private fun ProductCard(product: GroceryProductDto) {
                         )
                     }
                     if (product.unitPrice != null && product.unit != null) {
-                        Text("€%.2f/%s".format(product.unitPrice, product.unit), color = TextDisabled, fontSize = 10.sp)
+                        Text("$MOEDA_DO_MERCADO%.2f/%s".format(product.unitPrice, product.unit), color = TextDisabled, fontSize = 10.sp)
                     }
                     if (product.availability == "in_stock") {
                         Text("✓ disponível", color = GreenPrimary.copy(alpha = 0.7f), fontSize = 10.sp)
@@ -1145,7 +1157,7 @@ private fun ProductCard(product: GroceryProductDto) {
             Spacer(Modifier.width(10.dp))
             Column(horizontalAlignment = Alignment.End) {
                 if (product.price != null) {
-                    Text("€%.2f".format(product.price), color = IncomeGreen, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                    Text("$MOEDA_DO_MERCADO%.2f".format(product.price), color = IncomeGreen, fontWeight = FontWeight.Bold, fontSize = 17.sp)
                 }
                 if (!product.url.isNullOrBlank()) {
                     Text("ver →", color = chainColor.copy(alpha = 0.7f), fontSize = 10.sp)

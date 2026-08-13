@@ -99,7 +99,10 @@ fun GlobalSearchScreen(
                             icon = "🏆",
                             title = goal.name,
                             subtitle = "${(progress * 100).toInt()}% concluída",
-                            value = "€%.2f".format(target),
+                            // A meta tem moeda própria — "€" fixo anunciava
+                            // euros num objetivo guardado em reais.
+                            value = currencyConfigByCode(goal.currency ?: LocalCurrencyConfig.current.code)
+                                .format(target),
                             valueColor = GreenPrimary,
                         )
                     }
