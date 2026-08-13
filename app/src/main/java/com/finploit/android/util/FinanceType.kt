@@ -23,3 +23,21 @@ fun signedForTotals(type: String?, amount: Double): Double? = when (countableTyp
     "expense" -> -amount
     else -> null
 }
+
+/**
+ * Transferência: dinheiro que saiu do bolso disponível **sem ter sido gasto** —
+ * um depósito numa meta, uma passagem entre contas próprias.
+ *
+ * O `countableType` já a deixa de fora dos totais, como deixa qualquer tipo que
+ * não saiba somar. A diferença é que esta a app cria de propósito e tem de
+ * saber mostrar: sem isto, um depósito de 250 € aparecia na lista a vermelho,
+ * rotulado "Despesa", que é a leitura que se quis evitar (T6.1).
+ */
+fun isTransfer(type: String?): Boolean = type == "transfer"
+
+/** O rótulo de um lançamento na lista. */
+fun typeLabel(type: String?): String = when (type) {
+    "income" -> "Receita"
+    "transfer" -> "Transferência"
+    else -> "Despesa"
+}

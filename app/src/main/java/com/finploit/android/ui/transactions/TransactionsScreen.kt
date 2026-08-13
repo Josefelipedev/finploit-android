@@ -62,7 +62,9 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.finploit.android.data.dto.FinanceItemDto
 import com.finploit.android.ui.components.BillChip
+import com.finploit.android.ui.components.OriginChip
 import com.finploit.android.ui.components.OwnerChip
+import com.finploit.android.util.isTransfer
 import com.finploit.android.ui.theme.CardBackground
 import com.finploit.android.ui.theme.ExpenseRed
 import com.finploit.android.ui.theme.Green80
@@ -262,7 +264,14 @@ private fun SwipeToDeleteTransaction(
 @Composable
 fun TransactionListItem(tx: FinanceItemDto, onClick: (() -> Unit)? = null) {
     val isIncome = tx.type == "income"
-    val color = if (isIncome) IncomeGreen else ExpenseRed
+    // Uma transferência não é despesa: sai do bolso mas continua a ser tua.
+    // A vermelho e rotulada "Despesa" era a leitura que se quis evitar (T6.1).
+    val transferencia = isTransfer(tx.type)
+    val color = when {
+        isIncome -> IncomeGreen
+        transferencia -> Color.Gray
+        else -> ExpenseRed
+    }
     val icon = if (isIncome) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward
     // A moeda do próprio lançamento: com a do utilizador, uma despesa em reais
     // aparecia com "€" à frente do mesmo número.
@@ -301,6 +310,10 @@ fun TransactionListItem(tx: FinanceItemDto, onClick: (() -> Unit)? = null) {
                     if (tx.bill != null) {
                         Spacer(Modifier.width(8.dp))
                         BillChip(tx.bill)
+                    } else if (tx.origin != null) {
+                        // De onde veio, quando não foi escrito à mão (T6.6).
+                        Spacer(Modifier.width(8.dp))
+                        OriginChip(tx.origin)
                     }
                 }
             }

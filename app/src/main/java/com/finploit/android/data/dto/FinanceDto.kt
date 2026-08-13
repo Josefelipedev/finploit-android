@@ -152,12 +152,37 @@ data class FinanceItemDto(
     val billOccurrenceId: Int? = null,
     /** A mesma conta já resolvida pela API (descrição e vencimento). */
     val bill: LinkedBillDto? = null,
+    /** De onde veio este lançamento; null = escrito à mão. */
+    val origin: FinanceOriginDto? = null,
 ) {
     /** Data do movimento (recuo para a de criação, como a API faz). */
     val movementDate: String get() = (referenceDate ?: createdAt).take(10)
 
     /** Valor somável: o convertido quando a API o mandou, senão o original. */
     val amountForTotals: Double get() = convertedAmount ?: amount ?: 0.0
+}
+
+/**
+ * De onde veio um lançamento que a app criou sozinha (T6.6).
+ *
+ * Cinco módulos emitem lançamentos — contas a pagar, metas, listas de compras,
+ * cardápio, e a mão do utilizador — e na lista eram todos linhas iguais. Sem
+ * isto não há como ver que a mesma compra foi contada duas vezes, uma pela
+ * lista fechada e outra à mão. A app não adivinha duplicados: mostra a origem.
+ */
+data class FinanceOriginDto(
+    /** `bill` | `goal` | `shopping` | `meal`. */
+    val kind: String,
+    val label: String,
+    val refId: Int,
+) {
+    val chipLabel: String
+        get() = when (kind) {
+            "goal" -> "Meta · $label"
+            "shopping" -> "Compras · $label"
+            "meal" -> "Cardápio"
+            else -> label
+        }
 }
 
 /**
