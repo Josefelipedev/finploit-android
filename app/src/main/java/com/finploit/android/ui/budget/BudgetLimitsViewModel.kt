@@ -60,7 +60,9 @@ class BudgetLimitsViewModel @Inject constructor(
                     isLoading = false,
                     limits = limits.getOrDefault(emptyList()),
                     categories = categories.getOrDefault(emptyList()),
-                    error = limits.exceptionOrNull()?.message,
+                    // Os dois erros contam: sem as categorias, o ecrã fica sem
+                    // saber a que é que os limites se referem.
+                    error = (limits.exceptionOrNull() ?: categories.exceptionOrNull())?.message,
                 )
             }
         }
@@ -84,6 +86,19 @@ class BudgetLimitsViewModel @Inject constructor(
                             monthlySummary = spentByCategory,
                             displayCurrency = summary.displayCurrency,
                             unconvertedCurrencies = summary.unconvertedCurrencies ?: emptyList(),
+                            error = null,
+                        )
+                    }
+                }
+                // Sem isto, uma falha a ler o resumo deixava o `monthlySummary`
+                // vazio e **todas as categorias mostravam 0 gasto** — o ecrã
+                // dizia "estás dentro de todos os limites" quando o que
+                // aconteceu foi não ter conseguido perguntar (T9).
+                .onFailure { e ->
+                    _state.update {
+                        it.copy(
+                            monthlySummary = emptyMap(),
+                            error = e.message ?: "Não foi possível carregar o gasto do mês.",
                         )
                     }
                 }
