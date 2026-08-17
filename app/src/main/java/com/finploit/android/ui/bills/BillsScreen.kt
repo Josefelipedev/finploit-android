@@ -72,7 +72,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.finploit.android.data.dto.BankAccountDto
 import com.finploit.android.data.dto.BillItemDto
+import com.finploit.android.data.dto.BillsForecastDto
 import com.finploit.android.data.dto.FinanceCategoryDto
 import com.finploit.android.ui.components.OwnerChip
 import com.finploit.android.ui.theme.BackgroundDark
@@ -192,6 +194,12 @@ fun BillsScreen(
                     contentPadding = PaddingValues(20.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
+                    // Os quatro totais em cima são do casal inteiro; estes
+                    // dizem em que conta é que o dinheiro fica.
+                    uiState.accountsForecast?.let { forecast ->
+                        item(key = "forecast") { AccountForecastSection(forecast) }
+                    }
+
                     item(key = "filters") {
                         BillFiltersBar(
                             state = uiState,
@@ -224,6 +232,8 @@ fun BillsScreen(
                         items(expenses, key = { "e-${it.id}" }) { item ->
                             BillCard(
                                 item = item,
+                                accountName = uiState.accountName(item.accountId),
+                                hasBankAccounts = uiState.hasBankAccounts,
                                 onToggle = {
                                     if (item.isPaid) viewModel.togglePaid(item) else payTarget = item
                                 },
@@ -237,6 +247,8 @@ fun BillsScreen(
                         items(incomes, key = { "i-${it.id}" }) { item ->
                             BillCard(
                                 item = item,
+                                accountName = uiState.accountName(item.accountId),
+                                hasBankAccounts = uiState.hasBankAccounts,
                                 onToggle = {
                                     if (item.isPaid) viewModel.togglePaid(item) else payTarget = item
                                 },
@@ -266,11 +278,12 @@ fun BillsScreen(
             existing = null,
             isSaving = uiState.isSaving,
             categories = uiState.categories,
+            bankAccounts = uiState.bankAccounts,
             defaultCurrency = LocalCurrencyConfig.current.code,
             defaultDueDate = defaultDueDate(uiState.month),
             onDismiss = { showCreate = false },
-            onConfirm = { description, amount, dueDate, type, currency, categoryId ->
-                viewModel.createBill(description, amount, dueDate, type, currency, categoryId)
+            onConfirm = { description, amount, dueDate, type, currency, categoryId, accountId ->
+                viewModel.createBill(description, amount, dueDate, type, currency, categoryId, accountId)
                 showCreate = false
             },
         )
@@ -281,11 +294,12 @@ fun BillsScreen(
             existing = target,
             isSaving = uiState.isSaving,
             categories = uiState.categories,
+            bankAccounts = uiState.bankAccounts,
             defaultCurrency = target.currency,
             defaultDueDate = target.dueDate.take(10),
             onDismiss = { editTarget = null },
-            onConfirm = { description, amount, dueDate, _, _, categoryId ->
-                viewModel.updateBill(target.id, description, amount, dueDate, categoryId)
+            onConfirm = { description, amount, dueDate, _, _, categoryId, accountId ->
+                viewModel.updateBill(target.id, description, amount, dueDate, categoryId, accountId)
                 editTarget = null
             },
         )
@@ -571,6 +585,7 @@ private fun BillFormDialog(
     existing: BillItemDto?,
     isSaving: Boolean,
     categories: List<FinanceCategoryDto>,
+    bankAccounts: List<BankAccountDto>,
     defaultCurrency: String,
     defaultDueDate: String,
     onDismiss: () -> Unit,
@@ -581,6 +596,7 @@ private fun BillFormDialog(
         type: String,
         currency: String?,
         categoryId: Int?,
+        accountId: Int?,
     ) -> Unit,
 ) {
     val editing = existing != null
@@ -590,9 +606,11 @@ private fun BillFormDialog(
     var type by remember { mutableStateOf(existing?.type ?: "expense") }
     var currency by remember { mutableStateOf(defaultCurrency) }
     var categoryId by remember { mutableStateOf(existing?.categoryId) }
+    var accountId by remember { mutableStateOf(existing?.accountId) }
 
     var currencyMenuExpanded by remember { mutableStateOf(false) }
     var categoryMenuExpanded by remember { mutableStateOf(false) }
+    var accountMenuExpanded by remember { mutableStateOf(false) }
 
     val amount = parseAmountInput(amountText)
     val validDate = runCatching { LocalDate.parse(dueDate.trim()) }.isSuccess
@@ -600,6 +618,7 @@ private fun BillFormDialog(
 
     val selectedCurrency = currencyConfigByCode(currency)
     val selectedCategory = categories.find { it.id == categoryId }
+    val selectedAccount = bankAccounts.find { it.id == accountId }
 
     AlertDialog(
         containerColor = CardBackground,
@@ -743,6 +762,58 @@ private fun BillFormDialog(
                         }
                     }
                 }
+
+                // Conta bancária: é ela que responde a "quanto me fica na
+                // conta". Só aparece quando há contas registadas — um seletor
+                // com uma opção só ("Sem conta") não ajuda ninguém.
+                if (bankAccounts.isNotEmpty()) {
+                    Spacer(Modifier.height(12.dp))
+                    ExposedDropdownMenuBox(
+                        expanded = accountMenuExpanded,
+                        onExpandedChange = { accountMenuExpanded = it },
+                    ) {
+                        OutlinedTextField(
+                            value = selectedAccount?.let { "${it.bankName} · ${it.currency}" } ?: "Sem conta",
+                            onValueChange = {},
+                            readOnly = true,
+                            label = {
+                                Text(
+                                    if (type == "income") "Entra na conta (opcional)"
+                                    else "Sai da conta (opcional)",
+                                )
+                            },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = accountMenuExpanded) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .menuAnchor(MenuAnchorType.PrimaryNotEditable),
+                            colors = editorFieldColors(),
+                        )
+                        ExposedDropdownMenu(
+                            expanded = accountMenuExpanded,
+                            onDismissRequest = { accountMenuExpanded = false },
+                            containerColor = SurfaceDark,
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Sem conta", color = Color.White) },
+                                onClick = {
+                                    accountId = null
+                                    accountMenuExpanded = false
+                                },
+                            )
+                            bankAccounts.forEach { account ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Text("${account.bankName} · ${account.currency}", color = Color.White)
+                                    },
+                                    onClick = {
+                                        accountId = account.id
+                                        accountMenuExpanded = false
+                                    },
+                                )
+                            }
+                        }
+                    }
+                }
             }
         },
         confirmButton = {
@@ -756,6 +827,7 @@ private fun BillFormDialog(
                             type,
                             if (editing) null else currency,
                             categoryId,
+                            accountId,
                         )
                     }
                 },
@@ -866,6 +938,99 @@ private fun SummaryHeader(state: BillsUiState) {
     }
 }
 
+/**
+ * O que fica em cada conta bancária depois de pagar o que falta.
+ *
+ * Os totais em cima respondem "sobra dinheiro?" para o casal inteiro — e num
+ * casal com contas separadas isso não chega: saber que sobram 900 € não diz em
+ * que conta é que eles estão, nem qual dos dois vai ficar apertado no dia 28.
+ *
+ * Cada cartão fala na moeda da **própria conta** (por isso `currencyConfigByCode`
+ * e não o `LocalCurrencyConfig` do perfil): uma conta em euros que mostrasse
+ * "R$" punha o símbolo errado por cima do número certo.
+ */
+@Composable
+private fun AccountForecastSection(forecast: BillsForecastDto) {
+    if (forecast.items.isEmpty() && forecast.unassigned.count == 0) return
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            "O QUE FICA EM CADA CONTA",
+            color = TextSecondary,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+        )
+
+        forecast.items.forEach { account ->
+            val money = currencyConfigByCode(account.currency)
+            val negativo = account.projectedBalance < 0
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = CardBackground),
+            ) {
+                Column(Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Column {
+                            Text(account.bankName, color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                            Text(
+                                listOfNotNull(account.ownerName, account.currency).joinToString(" · "),
+                                color = TextSecondary,
+                                fontSize = 11.sp,
+                            )
+                        }
+                        Text(
+                            if (negativo) "não chega" else "${account.billCount} por liquidar",
+                            color = if (negativo) ExpenseRed else TextSecondary,
+                            fontSize = 11.sp,
+                        )
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        money.format(account.projectedBalance),
+                        color = if (negativo) ExpenseRed else TextPrimary,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 22.sp,
+                    )
+                    Text("fica no fim, se tudo for pago", color = TextSecondary, fontSize = 11.sp)
+                    Spacer(Modifier.height(10.dp))
+                    ForecastLine("Hoje", money.format(account.currentBalance), TextPrimary)
+                    ForecastLine("Ainda entra", "+${money.format(account.incoming)}", IncomeGreen)
+                    ForecastLine("Ainda sai", "−${money.format(account.outgoing)}", ExpenseRed)
+                }
+            }
+        }
+
+        // O dinheiro que ninguém disse de onde sai não se reparte pelas contas
+        // — calá-lo era deixar os cartões acima parecerem a história toda.
+        if (forecast.unassigned.count > 0) {
+            val money = currencyConfigByCode(forecast.unassigned.currency)
+            val n = forecast.unassigned.count
+            Text(
+                "$n ${if (n == 1) "conta ainda não diz" else "contas ainda não dizem"} de que conta " +
+                    "${if (n == 1) "sai" else "saem"} (${money.format(forecast.unassigned.outgoing)} a pagar) — " +
+                    "${if (n == 1) "não entra" else "não entram"} nas previsões acima.",
+                color = TextSecondary,
+                fontSize = 11.sp,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ForecastLine(label: String, value: String, accent: Color) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(label, color = TextSecondary, fontSize = 12.sp)
+        Text(value, color = accent, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+    }
+}
+
 @Composable
 private fun SummaryTile(
     label: String,
@@ -889,6 +1054,10 @@ private fun SummaryTile(
 @Composable
 private fun BillCard(
     item: BillItemDto,
+    /** Nome do banco de onde sai; nulo quando a conta não o diz. */
+    accountName: String?,
+    /** Há contas bancárias registadas — só então faz sentido dizer que falta uma. */
+    hasBankAccounts: Boolean,
     onToggle: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
@@ -943,12 +1112,18 @@ private fun BillCard(
                 // O chip de autoria só aparece no workspace do casal; os outros
                 // dois só quando há o que assinalar.
                 val owner = LocalOwnerNaming.current.nameOf(item.userId)
-                if (overdue || item.carriedOver || owner != null) {
+                // De que conta sai. Quando não está dito, a conta fica de fora
+                // da previsão por conta — e um número que falta explica-se
+                // melhor aqui, na linha que o causa, do que num aviso no topo.
+                val missingAccount = accountName == null && !paid && hasBankAccounts
+                if (overdue || item.carriedOver || owner != null || accountName != null || missingAccount) {
                     Spacer(Modifier.height(6.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         if (overdue) BillChip("Em atraso", ExpenseRed)
                         if (item.carriedOver) BillChip("Mês anterior", WarningAmber)
                         OwnerChip(item.userId)
+                        accountName?.let { BillChip(it, TextSecondary) }
+                        if (missingAccount) BillChip("Sem conta", WarningAmber)
                     }
                 }
             }

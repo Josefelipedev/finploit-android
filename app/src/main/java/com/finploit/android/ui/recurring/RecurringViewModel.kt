@@ -2,9 +2,11 @@ package com.finploit.android.ui.recurring
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.finploit.android.data.dto.BankAccountDto
 import com.finploit.android.data.dto.CreateRecurringRequest
 import com.finploit.android.data.dto.FinanceCategoryDto
 import com.finploit.android.data.dto.RecurringTransactionDto
+import com.finploit.android.data.repository.BankAccountRepository
 import com.finploit.android.data.repository.FinanceCategoryRepository
 import com.finploit.android.data.repository.RecurringRepository
 import com.finploit.android.ui.theme.currencyConfigByCode
@@ -42,6 +44,8 @@ data class RecurringUiState(
     val isLoading: Boolean = false,
     val transactions: List<RecurringTransactionDto> = emptyList(),
     val categories: List<FinanceCategoryDto> = emptyList(),
+    /** Contas bancárias do casal, para o seletor "sai da conta" do formulário. */
+    val bankAccounts: List<BankAccountDto> = emptyList(),
     val error: String? = null,
     val isSaving: Boolean = false,
     val saveSuccess: Boolean = false,
@@ -58,6 +62,7 @@ data class RecurringUiState(
 class RecurringViewModel @Inject constructor(
     private val repository: RecurringRepository,
     private val categoryRepository: FinanceCategoryRepository,
+    private val bankAccountRepository: BankAccountRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(RecurringUiState(isLoading = true))
@@ -66,6 +71,20 @@ class RecurringViewModel @Inject constructor(
     init {
         loadAll()
         loadCategories()
+        loadBankAccounts()
+    }
+
+    /**
+     * Falhar isto não estraga o formulário: sem contas, o seletor não aparece e
+     * a recorrente é criada sem conta atribuída — como eram todas antes disto.
+     */
+    fun loadBankAccounts() {
+        viewModelScope.launch {
+            bankAccountRepository.getAll()
+                .onSuccess { list ->
+                    _uiState.value = _uiState.value.copy(bankAccounts = list.filterNot { it.isArchived })
+                }
+        }
     }
 
     fun loadAll() {
@@ -103,6 +122,7 @@ class RecurringViewModel @Inject constructor(
         notification: Boolean,
         totalAmount: Double?,
         currency: String?,
+        accountId: Int?,
     ) = CreateRecurringRequest(
         description = description,
         amount = amount,
@@ -119,6 +139,7 @@ class RecurringViewModel @Inject constructor(
         weekDay = 0,
         notification = notification,
         categoryId = categoryId,
+        accountId = accountId,
         startDate = startDate,
         endDate = endDate,
         occurrences = occurrences,
@@ -140,6 +161,8 @@ class RecurringViewModel @Inject constructor(
         notification: Boolean = true,
         totalAmount: Double? = null,
         currency: String? = null,
+        /** Conta bancária de onde sai (ou onde entra); as contas geradas herdam-na. */
+        accountId: Int? = null,
     ) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isSaving = true, saveError = null, saveSuccess = false)
@@ -148,7 +171,7 @@ class RecurringViewModel @Inject constructor(
                 buildRequest(
                     description, amount, type, frequency, dueDay, businessDay,
                     categoryId, startDate, endDate, occurrences, notification,
-                    totalAmount, currency,
+                    totalAmount, currency, accountId,
                 ),
             )
                 .onSuccess {
@@ -173,6 +196,8 @@ class RecurringViewModel @Inject constructor(
         notification: Boolean = true,
         totalAmount: Double? = null,
         currency: String? = null,
+        /** Conta bancária de onde sai (ou onde entra); as contas geradas herdam-na. */
+        accountId: Int? = null,
     ) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isSaving = true, saveError = null, saveSuccess = false)
@@ -180,7 +205,7 @@ class RecurringViewModel @Inject constructor(
                 buildRequest(
                     description, amount, type, frequency, dueDay, businessDay,
                     categoryId, startDate, endDate, occurrences, notification,
-                    totalAmount, currency,
+                    totalAmount, currency, accountId,
                 )
             )
                 .onSuccess {

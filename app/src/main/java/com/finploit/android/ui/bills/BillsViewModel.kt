@@ -2,10 +2,13 @@ package com.finploit.android.ui.bills
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.finploit.android.data.dto.BankAccountDto
 import com.finploit.android.data.dto.BillItemDto
+import com.finploit.android.data.dto.BillsForecastDto
 import com.finploit.android.data.dto.CreateBillRequest
 import com.finploit.android.data.dto.FinanceCategoryDto
 import com.finploit.android.data.dto.UpdateBillRequest
+import com.finploit.android.data.repository.BankAccountRepository
 import com.finploit.android.data.repository.BillsRepository
 import com.finploit.android.data.repository.CoupleRepository
 import com.finploit.android.data.repository.FinanceCategoryRepository
@@ -72,9 +75,26 @@ data class BillsUiState(
     val incomePaid: Double = 0.0,
     val projectedBalance: Double = 0.0,
     val realizedBalance: Double = 0.0,
+    /**
+     * O que fica em cada conta bancária depois de pagar o que falta. Nulo num
+     * mês já fechado — a previsão parte do saldo de hoje.
+     */
+    val accountsForecast: BillsForecastDto? = null,
+    /**
+     * As contas bancárias do casal, para o seletor do formulário e para dizer
+     * o nome do banco em cada linha. Vêm daqui (e não da previsão) para o nome
+     * continuar a aparecer num mês fechado, onde não há previsão.
+     */
+    val bankAccounts: List<BankAccountDto> = emptyList(),
     val categories: List<FinanceCategoryDto> = emptyList(),
     val error: String? = null,
 ) {
+    /** O nome do banco de uma conta, quando ela diz de onde sai. */
+    fun accountName(accountId: Int?): String? =
+        accountId?.let { id -> bankAccounts.find { it.id == id }?.bankName }
+
+    val hasBankAccounts: Boolean get() = bankAccounts.isNotEmpty()
+
     /** O que passa nos filtros. Os totais em cima continuam a ser os do mês inteiro. */
     val visibleItems: List<BillItemDto>
         get() = items.filter { item ->
@@ -125,6 +145,7 @@ class BillsViewModel @Inject constructor(
     private val repository: BillsRepository,
     private val categoryRepository: FinanceCategoryRepository,
     private val coupleRepository: CoupleRepository,
+    private val bankAccountRepository: BankAccountRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(BillsUiState())
@@ -134,6 +155,24 @@ class BillsViewModel @Inject constructor(
         load(_uiState.value.month)
         loadCategories()
         loadMyUserId()
+        loadBankAccounts()
+    }
+
+    /**
+     * Falhar isto não estraga o ecrã: sem contas na lista, o seletor do
+     * formulário fica escondido e as linhas não mostram o nome do banco — mas
+     * a previsão que vem no GET /bills continua a aparecer, porque é calculada
+     * no servidor.
+     */
+    private fun loadBankAccounts() {
+        viewModelScope.launch {
+            bankAccountRepository.getAll()
+                .onSuccess { list ->
+                    _uiState.value = _uiState.value.copy(
+                        bankAccounts = list.filterNot { it.isArchived },
+                    )
+                }
+        }
     }
 
     private fun loadCategories() {
@@ -180,6 +219,7 @@ class BillsViewModel @Inject constructor(
                 incomePaid = data?.income?.paid ?: 0.0,
                 projectedBalance = data?.projectedBalance ?: 0.0,
                 realizedBalance = data?.realizedBalance ?: 0.0,
+                accountsForecast = data?.accounts,
                 error = if (result.isFailure) "Não foi possível carregar as contas." else null,
             )
         }
@@ -213,6 +253,7 @@ class BillsViewModel @Inject constructor(
         type: String,
         currency: String?,
         categoryId: Int?,
+        accountId: Int?,
     ) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isSaving = true)
@@ -224,6 +265,7 @@ class BillsViewModel @Inject constructor(
                     type = type,
                     currency = currency,
                     categoryId = categoryId,
+                    accountId = accountId,
                 ),
             )
             _uiState.value = _uiState.value.copy(isSaving = false)
@@ -241,6 +283,7 @@ class BillsViewModel @Inject constructor(
         amount: Double?,
         dueDate: String?,
         categoryId: Int?,
+        accountId: Int?,
     ) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isSaving = true)
@@ -251,6 +294,7 @@ class BillsViewModel @Inject constructor(
                     amount = amount,
                     dueDate = dueDate,
                     categoryId = categoryId,
+                    accountId = accountId,
                 ),
             )
             _uiState.value = _uiState.value.copy(isSaving = false)

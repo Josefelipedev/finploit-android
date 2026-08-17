@@ -98,6 +98,7 @@ fun AddRecurringScreen(
     var frequency by remember { mutableStateOf("monthly") }
     var dueDay by remember { mutableStateOf("1") }
     var selectedCategoryId by remember { mutableStateOf<Int?>(null) }
+    var selectedAccountId by remember { mutableStateOf<Int?>(null) }
     var occurrences by remember { mutableStateOf("12") }
     var totalAmount by remember { mutableStateOf("") }
     var useBusinessDay by remember { mutableStateOf(false) }
@@ -119,6 +120,7 @@ fun AddRecurringScreen(
             useBusinessDay = r.businessDay != null
             businessDay = (r.businessDay ?: 5).toString()
             selectedCategoryId = r.categoryId
+            selectedAccountId = r.accountId
             occurrences = (r.occurrences ?: 0).takeIf { it > 0 }?.toString().orEmpty()
             totalAmount = r.contractedTotal?.let { String.format("%.2f", it).replace('.', ',') }.orEmpty()
             startDate = r.startDate?.take(10).orEmpty()
@@ -128,6 +130,7 @@ fun AddRecurringScreen(
     }
     var frequencyExpanded by remember { mutableStateOf(false) }
     var categoryExpanded by remember { mutableStateOf(false) }
+    var accountExpanded by remember { mutableStateOf(false) }
 
     LaunchedEffect(uiState.saveSuccess) {
         if (uiState.saveSuccess) { viewModel.clearSaveState(); onDismiss() }
@@ -261,6 +264,49 @@ fun AddRecurringScreen(
                             text = { Text(cat.name, color = Color.White) },
                             onClick = { selectedCategoryId = cat.id; categoryExpanded = false },
                         )
+                    }
+                }
+            }
+
+            // Conta bancária: é daqui que sai a previsão por conta — cada conta
+            // gerada herda-a, e o pagamento leva-a ao lançamento. Só aparece
+            // quando há contas registadas; um seletor com uma opção só ("Sem
+            // conta") não ajuda ninguém.
+            if (uiState.bankAccounts.isNotEmpty()) {
+                ExposedDropdownMenuBox(
+                    expanded = accountExpanded,
+                    onExpandedChange = { accountExpanded = it },
+                ) {
+                    val selectedAccount = uiState.bankAccounts.find { it.id == selectedAccountId }
+                    OutlinedTextField(
+                        value = selectedAccount?.let { "${it.bankName} · ${it.currency}" } ?: "Sem conta",
+                        onValueChange = {},
+                        readOnly = true,
+                        label = {
+                            Text(if (type == "income") "Entra na conta (opcional)" else "Sai da conta (opcional)")
+                        },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = accountExpanded) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor(MenuAnchorType.PrimaryNotEditable),
+                        colors = fieldColors(),
+                        shape = RoundedCornerShape(12.dp),
+                    )
+                    ExposedDropdownMenu(
+                        expanded = accountExpanded,
+                        onDismissRequest = { accountExpanded = false },
+                        containerColor = Color(0xFF1E1E2E),
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Sem conta", color = Color.White) },
+                            onClick = { selectedAccountId = null; accountExpanded = false },
+                        )
+                        uiState.bankAccounts.forEach { account ->
+                            DropdownMenuItem(
+                                text = { Text("${account.bankName} · ${account.currency}", color = Color.White) },
+                                onClick = { selectedAccountId = account.id; accountExpanded = false },
+                            )
+                        }
                     }
                 }
             }
@@ -411,6 +457,7 @@ fun AddRecurringScreen(
                             dueDay = diaFixo,
                             businessDay = diaUtil,
                             categoryId = categoria,
+                            accountId = selectedAccountId,
                             startDate = startDate.ifBlank { null },
                             endDate = endDate.ifBlank { null },
                             occurrences = occurrences.toIntOrNull() ?: 12,
@@ -428,6 +475,7 @@ fun AddRecurringScreen(
                             dueDay = diaFixo,
                             businessDay = diaUtil,
                             categoryId = categoria,
+                            accountId = selectedAccountId,
                             startDate = startDate.ifBlank { null },
                             endDate = endDate.ifBlank { null },
                             occurrences = occurrences.toIntOrNull() ?: 12,

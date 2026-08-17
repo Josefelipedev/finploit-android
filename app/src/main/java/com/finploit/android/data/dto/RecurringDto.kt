@@ -17,6 +17,11 @@ data class RecurringTransactionDto(
     val occurrences: Int?,
     val userId: Int?,
     val categoryId: Int? = null,
+    /**
+     * Conta bancária de onde sai (ou onde entra). As contas geradas herdam-na,
+     * e é dela que sai a previsão "o que fica na conta no fim do mês".
+     */
+    val accountId: Int? = null,
     /** Total contratado gravado (nulo nas recorrentes anteriores à coluna). */
     val totalAmount: Double? = null,
     /** Total já resolvido pelo servidor: `totalAmount` ou parcela × parcelas. */
@@ -49,6 +54,8 @@ data class CreateRecurringRequest(
     val weekDay: Int,
     val notification: Boolean,
     val categoryId: Int,
+    /** Conta bancária de origem/destino; nulo = não foi dito. */
+    val accountId: Int? = null,
     val startDate: String? = null,
     val endDate: String? = null,
     val occurrences: Int,
