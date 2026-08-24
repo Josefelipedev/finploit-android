@@ -25,6 +25,8 @@ data class BillsResponse(
 data class BillsForecastDto(
     val items: List<AccountForecastDto> = emptyList(),
     val unassigned: UnassignedForecastDto = UnassignedForecastDto(),
+    /** Moedas somadas sem conversão — os saldos previstos são aproximados. */
+    val unconvertedCurrencies: List<String>? = null,
 )
 
 /**

@@ -88,6 +88,14 @@ data class BillsUiState(
     val bankAccounts: List<BankAccountDto> = emptyList(),
     val categories: List<FinanceCategoryDto> = emptyList(),
     val error: String? = null,
+    /**
+     * A leitura do mês falhou. Fica separado do `error` porque o `error` é
+     * consumido por um snackbar que desaparece sozinho: sem esta marca, o que
+     * sobrava no ecrã eram quatro totais a 0,00 e um "nenhuma conta este mês"
+     * — indistinguível de um mês realmente vazio, quando o que aconteceu foi
+     * não se ter conseguido perguntar (T9).
+     */
+    val loadFailed: Boolean = false,
 ) {
     /** O nome do banco de uma conta, quando ela diz de onde sai. */
     fun accountName(accountId: Int?): String? =
@@ -204,11 +212,18 @@ class BillsViewModel @Inject constructor(
 
     fun load(month: String) {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true, month = month, error = null)
+            _uiState.value =
+                _uiState.value.copy(
+                    isLoading = true,
+                    month = month,
+                    error = null,
+                    loadFailed = false,
+                )
             val result = repository.getBills(month)
             val data = result.getOrNull()
             _uiState.value = _uiState.value.copy(
                 isLoading = false,
+                loadFailed = result.isFailure,
                 month = data?.month?.takeIf { it.isNotBlank() } ?: month,
                 items = data?.items ?: emptyList(),
                 totalPending = data?.totalPending ?: 0.0,

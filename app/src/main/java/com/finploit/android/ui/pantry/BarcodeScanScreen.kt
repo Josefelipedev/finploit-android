@@ -28,6 +28,7 @@ import com.google.mlkit.vision.common.InputImage
 import com.finploit.android.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
+@androidx.annotation.OptIn(ExperimentalGetImage::class)
 @Composable
 fun BarcodeScanScreen(
     onBarcodeDetected: (String) -> Unit,
@@ -71,7 +72,6 @@ fun BarcodeScanScreen(
                                 .also { analysis ->
                                     analysis.setAnalyzer(ContextCompat.getMainExecutor(ctx)) { imageProxy ->
                                         if (!scanned) {
-                                            @androidx.camera.core.ExperimentalGetImage
                                             val mediaImage = imageProxy.image
                                             if (mediaImage != null) {
                                                 val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)

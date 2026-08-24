@@ -168,7 +168,9 @@ fun BillsScreen(
                 onPrev = viewModel::prevMonth,
                 onNext = viewModel::nextMonth,
             )
-            SummaryHeader(state = uiState)
+            // Os totais só se mostram quando são de facto os do mês. Depois de
+            // uma falha eram quatro zeros com ar de resposta.
+            if (!uiState.loadFailed) SummaryHeader(state = uiState)
 
             when {
                 uiState.isLoading -> Box(
@@ -176,6 +178,36 @@ fun BillsScreen(
                     contentAlignment = Alignment.Center,
                 ) {
                     CircularProgressIndicator(color = GreenPrimary)
+                }
+
+                // Não se conseguiu perguntar. Dizê-lo — e continuar a dizê-lo
+                // depois de o snackbar desaparecer — em vez de mostrar um mês
+                // vazio que o utilizador não tem como distinguir do verdadeiro.
+                uiState.loadFailed -> Box(
+                    Modifier.fillMaxSize().padding(24.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            "Não foi possível carregar as contas deste mês.",
+                            color = ExpenseRed,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            "Os totais ficam escondidos para não mostrarem um saldo que não é o seu.",
+                            color = TextSecondary,
+                            fontSize = 12.sp,
+                        )
+                        Spacer(Modifier.height(14.dp))
+                        Button(
+                            onClick = { viewModel.load(uiState.month) },
+                            colors = ButtonDefaults.buttonColors(containerColor = GreenPrimary),
+                        ) {
+                            Text("Tentar outra vez", color = BackgroundDark)
+                        }
+                    }
                 }
 
                 uiState.items.isEmpty() -> Box(
@@ -960,6 +992,16 @@ private fun AccountForecastSection(forecast: BillsForecastDto) {
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
         )
+
+        // Cada cartão soma contas de várias moedas na moeda da conta bancária.
+        // Sem taxa, essa soma junta valores de face.
+        forecast.unconvertedCurrencies?.takeIf { it.isNotEmpty() }?.let { moedas ->
+            Text(
+                "⚠️ ${moedas.joinToString(", ")} sem taxa de câmbio: os saldos previstos são aproximados.",
+                color = TextDisabled,
+                fontSize = 11.sp,
+            )
+        }
 
         forecast.items.forEach { account ->
             val money = currencyConfigByCode(account.currency)

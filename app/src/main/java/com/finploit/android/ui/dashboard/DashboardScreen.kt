@@ -206,6 +206,18 @@ fun DashboardScreen(
                         )
                     }
 
+                    // Sem taxa, o total acima soma moeda com moeda pelo valor
+                    // nativo. Dizê-lo aqui, e não só no relatório.
+                    data.unconvertedCurrencies?.takeIf { it.isNotEmpty() }?.let { moedas ->
+                        item {
+                            Text(
+                                "⚠️ ${moedas.joinToString(", ")} sem taxa de câmbio: o total é aproximado.",
+                                color = TextDisabled,
+                                fontSize = 11.sp,
+                            )
+                        }
+                    }
+
                     uiState.forecast?.let { forecast ->
                         item { MonthForecastCard(forecast) }
                     }
@@ -348,6 +360,9 @@ private fun MonthForecastCard(forecast: MonthForecastDto) {
         ?.let { currencyConfigByCode(it) }
         ?: LocalCurrencyConfig.current
     val nada = forecast.pending.expense == 0.0 && forecast.pending.income == 0.0
+    // O realizado e o pendente convertem-se em separado: basta um deles ter
+    // ficado por converter para o saldo previsto ser uma soma de moedas.
+    val semTaxa = forecast.unconvertedCurrencies.orEmpty()
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -355,6 +370,14 @@ private fun MonthForecastCard(forecast: MonthForecastDto) {
         colors = CardDefaults.cardColors(containerColor = CardBackground),
     ) {
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
+            if (semTaxa.isNotEmpty()) {
+                Text(
+                    "⚠️ ${semTaxa.joinToString(", ")} sem taxa de câmbio: a previsão é aproximada.",
+                    color = TextDisabled,
+                    fontSize = 11.sp,
+                )
+                Spacer(Modifier.height(6.dp))
+            }
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,

@@ -51,6 +51,11 @@ data class DashboardResponse(
     val totalExpense: Double,
     val stats: StatsDto,
     val transactions: List<TransactionDto>,
+    /**
+     * Moedas que entraram nos totais acima sem conversão, por não haver taxa.
+     * O relatório e o orçamento já avisavam; o dashboard somava em silêncio.
+     */
+    val unconvertedCurrencies: List<String>? = null,
 )
 
 /**
@@ -67,6 +72,8 @@ data class MonthForecastDto(
     val pending: ForecastPendingDto,
     val projectedBalance: Double,
     val displayCurrency: String? = null,
+    /** Moedas somadas sem conversão — a previsão é aproximada. */
+    val unconvertedCurrencies: List<String>? = null,
 )
 
 data class ForecastAmountsDto(

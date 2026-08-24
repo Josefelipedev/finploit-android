@@ -69,6 +69,7 @@ import com.finploit.android.ui.theme.Green80
 import com.finploit.android.ui.theme.IncomeGreen
 import com.finploit.android.ui.theme.LocalCurrencyConfig
 import com.finploit.android.ui.theme.SurfaceDark
+import java.util.Locale
 
 // "Diário" saiu (C1): a geração de contas nunca o produziu — a recorrente era
 // criada, aparecia na lista e não gerava conta nem aviso. O servidor deixou de
@@ -114,7 +115,7 @@ fun AddRecurringScreen(
         existing?.let { r ->
             type = if (r.type == "income" || r.type == "receita") "income" else "expense"
             description = r.description.orEmpty()
-            amount = String.format("%.2f", r.amount).replace('.', ',')
+            amount = String.format(Locale.US, "%.2f", r.amount).replace('.', ',')
             frequency = r.frequency
             dueDay = (r.dueDay ?: 1).toString()
             useBusinessDay = r.businessDay != null
@@ -122,7 +123,7 @@ fun AddRecurringScreen(
             selectedCategoryId = r.categoryId
             selectedAccountId = r.accountId
             occurrences = (r.occurrences ?: 0).takeIf { it > 0 }?.toString().orEmpty()
-            totalAmount = r.contractedTotal?.let { String.format("%.2f", it).replace('.', ',') }.orEmpty()
+            totalAmount = r.contractedTotal?.let { String.format(Locale.US, "%.2f", it).replace('.', ',') }.orEmpty()
             startDate = r.startDate?.take(10).orEmpty()
             endDate = r.endDate?.take(10).orEmpty()
             notification = r.notification ?: true
@@ -145,7 +146,7 @@ fun AddRecurringScreen(
     // Total e parcela são a mesma coisa vista de dois lados, ligados pelo número
     // de parcelas: escrever num deles refaz o outro. Quem grava — e quem dá o
     // resto do arredondamento à última parcela — é o servidor.
-    fun formatAmount(value: Double) = String.format("%.2f", value).replace('.', ',')
+    fun formatAmount(value: Double) = String.format(Locale.US, "%.2f", value).replace('.', ',')
 
     fun onInstallmentTyped(raw: String) {
         amount = filterAmountInput(raw)
