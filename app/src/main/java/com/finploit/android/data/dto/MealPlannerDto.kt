@@ -81,6 +81,13 @@ fun MealShoppingItemDto.parsedUsedInDays(): List<Int> = try {
 data class MealPlanDto(
     val id: Int,
     val weekStart: String,
+    /**
+     * Moeda em que os preços deste plano foram GERADOS. Não é a da conta hoje:
+     * mudar de moeda não converte um cardápio antigo, só lhe trocava o símbolo
+     * — os mesmos números a dizer outra coisa. `null` em planos anteriores a
+     * o campo existir.
+     */
+    val currency: String? = null,
     val active: Boolean,
     val days: List<MealPlanDayDto>,
     val shoppingList: MealShoppingListDto?,

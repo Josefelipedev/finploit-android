@@ -199,6 +199,7 @@ fun MealPlannerScreen(
                         servings = state.servings,
                     )
                     MealTab.SHOPPING -> ShoppingTab(
+                        planCurrency = state.plan?.currency,
                         items = state.plan?.shoppingList?.items ?: emptyList(),
                         totalEstimate = state.plan?.shoppingList?.totalEstimate,
                         tips = state.plan?.tips,

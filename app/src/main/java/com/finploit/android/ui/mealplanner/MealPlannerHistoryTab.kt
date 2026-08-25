@@ -51,6 +51,7 @@ import com.finploit.android.ui.theme.LocalCurrencyConfig
 import com.finploit.android.ui.theme.TextDisabled
 import com.finploit.android.ui.theme.TextPrimary
 import com.finploit.android.ui.theme.TextSecondary
+import com.finploit.android.ui.theme.currencyConfigByCode
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -133,12 +134,18 @@ internal fun HistoryTab(
                     val previous = sorted[1]
                     val newestCost = newest.shoppingList?.totalEstimate
                     val previousCost = previous.shoppingList?.totalEstimate
-                    if (newestCost != null && previousCost != null) {
+                    // Duas semanas em moedas diferentes não se subtraem: o
+                    // resultado era um número plausível e sem significado. Com
+                    // moedas diferentes não se mostra comparação nenhuma.
+                    val mesmaMoeda = newest.currency == previous.currency
+                    if (newestCost != null && previousCost != null && mesmaMoeda) {
                         val delta = newestCost - previousCost
                         val deltaColor = if (delta > 0) Color(0xFFEF5350) else GreenPrimary
-                        // O cardápio é orçamentado na moeda de quem o gera; "€" fixo
-                        // mentia a quem usa reais.
-                        val moeda = LocalCurrencyConfig.current
+                        // O símbolo é o do plano, não o da app: um cardápio
+                        // gerado em euros continua a ler-se em euros depois de a
+                        // conta passar a reais.
+                        val moeda = newest.currency?.let { currencyConfigByCode(it) }
+                            ?: LocalCurrencyConfig.current
                         val deltaLabel = if (delta > 0) "▲ +${moeda.format(delta)} vs semana anterior" else "▼ −${moeda.format(-delta)} vs semana anterior"
                         Row(
                             modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
@@ -306,7 +313,9 @@ internal fun HistoryPlanCard(
                     val bought = list.purchasedCount ?: list.items.count { it.purchased }
                     Text("🛒 $bought/$total itens comprados", color = TextSecondary, fontSize = 12.sp)
                     list.totalEstimate?.let {
-                        Text(LocalCurrencyConfig.current.format(it), color = GreenPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        val moeda = plan.currency?.let { c -> currencyConfigByCode(c) }
+                            ?: LocalCurrencyConfig.current
+                        Text(moeda.format(it), color = GreenPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }

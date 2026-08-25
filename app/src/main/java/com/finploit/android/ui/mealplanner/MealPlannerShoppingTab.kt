@@ -76,10 +76,12 @@ import com.finploit.android.ui.theme.TextPrimary
 import com.finploit.android.ui.theme.TextSecondary
 import com.finploit.android.util.filterAmountInput
 import com.finploit.android.util.parseAmountInput
+import com.finploit.android.ui.theme.currencyConfigByCode
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun ShoppingTab(
+    planCurrency: String? = null,
     items: List<MealShoppingItemDto>,
     totalEstimate: Double?,
     tips: String?,
@@ -112,7 +114,10 @@ internal fun ShoppingTab(
     onSupermarketFilterChange: (String?) -> Unit = {},
 ) {
     val context = LocalContext.current
-    val currencyConfig = LocalCurrencyConfig.current
+    // A moeda do plano manda; a da app só entra em planos antigos, gerados
+    // antes de ela passar a ser gravada.
+    val currencyConfig = planCurrency?.let { currencyConfigByCode(it) }
+        ?: LocalCurrencyConfig.current
 
     var searchQuery by remember { mutableStateOf("") }
     var priceDialogItem by remember { mutableStateOf<MealShoppingItemDto?>(null) }
