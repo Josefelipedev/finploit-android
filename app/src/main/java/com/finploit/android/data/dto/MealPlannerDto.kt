@@ -80,6 +80,12 @@ fun MealShoppingItemDto.parsedUsedInDays(): List<Int> = try {
 
 data class MealPlanDto(
     val id: Int,
+    /**
+     * Quem gerou o plano. O cardápio é do casal — um plano ativo de cada vez,
+     * visto e usado pelos dois — mas cada um sai das preferências e da agenda
+     * de quem carregou no botão.
+     */
+    val userId: Int? = null,
     val weekStart: String,
     /**
      * Moeda em que os preços deste plano foram GERADOS. Não é a da conta hoje:

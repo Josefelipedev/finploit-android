@@ -52,6 +52,7 @@ import com.finploit.android.ui.theme.TextDisabled
 import com.finploit.android.ui.theme.TextPrimary
 import com.finploit.android.ui.theme.TextSecondary
 import com.finploit.android.ui.theme.currencyConfigByCode
+import com.finploit.android.ui.components.OwnerChip
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -227,12 +228,18 @@ internal fun HistoryPlanCard(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        "Semana de ${plan.weekStart.take(10)}",
-                        color = TextPrimary,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp,
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "Semana de ${plan.weekStart.take(10)}",
+                            color = TextPrimary,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                        )
+                        // Quem gerou. O cardápio é do casal, mas cada plano sai
+                        // das preferências de quem carregou no botão.
+                        Spacer(Modifier.width(6.dp))
+                        OwnerChip(plan.userId)
+                    }
                     val mealTypes = listOf("breakfast", "lunch", "dinner")
                     val totalMeals = plan.days.size * 3
                     val eatenCount = plan.days.sumOf { day ->
