@@ -70,6 +70,7 @@ import com.finploit.android.ui.theme.LocalCurrencyConfig
 import com.finploit.android.ui.theme.SurfaceDark
 import com.finploit.android.ui.theme.TextDisabled
 import com.finploit.android.data.dto.itemPrice
+import com.finploit.android.data.dto.lineTotal
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -196,8 +197,8 @@ fun ShoppingListDetailScreen(
             val purchased = list.items.count { it.purchased }
             // O total é o que a lista vale pela regra do `itemPrice`; a linha do
             // scraper fica como referência, não como o número que manda.
-            val total = list.items.sumOf { it.itemPrice }
-            val scrapedTotal = list.items.sumOf { it.scrapedPrice ?: 0.0 }
+            val total = list.items.sumOf { it.lineTotal }
+            val scrapedTotal = list.items.sumOf { (it.scrapedPrice ?: 0.0) * (it.quantity.takeIf { q -> q > 0 } ?: 1.0) }
 
             Row(
                 modifier = Modifier
@@ -443,7 +444,16 @@ private fun ShoppingItemRow(
                 )
                 val subtitle = buildString {
                     append("${item.quantity} ${item.unit ?: "un."}")
-                    item.price?.takeIf { it > 0 }?.let { append(" · ${LocalCurrencyConfig.current.format(it)}") }
+                    // Preço de UM e o que a linha vale — a quantidade passou a
+                    // multiplicar, e sem os dois números a conta não se vê.
+                    if (item.itemPrice > 0) {
+                        val cfg = LocalCurrencyConfig.current
+                        if (item.quantity > 1) {
+                            append(" · ${cfg.format(item.itemPrice)} cada · ${cfg.format(item.lineTotal)}")
+                        } else {
+                            append(" · ${cfg.format(item.lineTotal)}")
+                        }
+                    }
                 }
                 Text(subtitle, color = Color.Gray, fontSize = 12.sp)
                 // Scraper price + supermarket badge
@@ -584,7 +594,7 @@ private fun AddItemDialog(
                 OutlinedTextField(
                     value = price,
                     onValueChange = { price = it.filter { c -> c.isDigit() || c == '.' } },
-                    label = { Text("Preço Total (${LocalCurrencyConfig.current.symbol})") }, singleLine = true,
+                    label = { Text("Preço por unidade (${LocalCurrencyConfig.current.symbol})") }, singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.fillMaxWidth(), colors = dialogFieldColors(),
                 )

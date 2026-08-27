@@ -12,9 +12,9 @@ data class ShoppingListDto(
 ) {
     val isClosed: Boolean get() = closedAt != null
 
-    /** O que vira despesa ao fechar: só os comprados, pela regra do `itemPrice`. */
+    /** O que vira despesa ao fechar: só os comprados, preço unitário × quantidade. */
     val purchasedTotal: Double
-        get() = items.filter { it.purchased }.sumOf { it.itemPrice }
+        get() = items.filter { it.purchased }.sumOf { it.lineTotal }
 }
 
 /** Corpo do fecho: o valor é somado no servidor, o cliente só escolhe onde e quando. */
@@ -53,6 +53,15 @@ data class ShoppingItemDto(
  */
 val ShoppingItemDto.itemPrice: Double
     get() = price?.takeIf { it > 0 } ?: scrapedPrice ?: price ?: 0.0
+
+/**
+ * O que a linha vale: preço unitário × quantidade.
+ *
+ * A `quantity` não entrava em conta nenhuma até 27/ago/2026 — três pães a
+ * 10,00 € somavam 10,00 €. Quantidade ausente ou sem sentido conta como 1.
+ */
+val ShoppingItemDto.lineTotal: Double
+    get() = itemPrice * (quantity.takeIf { it > 0 } ?: 1.0)
 
 /** true quando o valor deste item veio do scraper, não da pessoa. */
 val ShoppingItemDto.isEstimatedPrice: Boolean
