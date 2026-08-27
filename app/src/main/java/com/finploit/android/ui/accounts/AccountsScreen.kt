@@ -67,6 +67,7 @@ import com.finploit.android.ui.theme.SurfaceDark
 import com.finploit.android.ui.theme.TextPrimary
 import com.finploit.android.ui.theme.TextSecondary
 import com.finploit.android.ui.theme.TextDisabled
+import com.finploit.android.ui.theme.WarningAmber
 import com.finploit.android.ui.theme.currencyConfigByCode
 import com.finploit.android.util.filterAmountInput
 import com.finploit.android.util.parseAmountInput
@@ -148,7 +149,7 @@ fun AccountsScreen(
                             showForm = false
                             editingAccount = null
                         },
-                        onSubmit = { bankName, accountNumber, agency, balance, currency ->
+                        onSubmit = { bankName, accountNumber, agency, balance, creditLimit, currency ->
                             val editing = editingAccount
                             if (editing != null) {
                                 viewModel.updateAccount(
@@ -157,6 +158,7 @@ fun AccountsScreen(
                                     accountNumber = accountNumber,
                                     agency = agency,
                                     balance = balance,
+                                    creditLimit = creditLimit,
                                     currency = currency,
                                 )
                             } else {
@@ -165,6 +167,7 @@ fun AccountsScreen(
                                     accountNumber = accountNumber,
                                     agency = agency,
                                     balance = balance,
+                                    creditLimit = creditLimit,
                                     currency = currency,
                                 )
                             }
@@ -232,12 +235,20 @@ private fun AccountForm(
     editing: BankAccountDto?,
     isSaving: Boolean,
     onCancel: () -> Unit,
-    onSubmit: (bankName: String, accountNumber: String?, agency: String?, balance: Double?, currency: String) -> Unit,
+    onSubmit: (
+        bankName: String,
+        accountNumber: String?,
+        agency: String?,
+        balance: Double?,
+        creditLimit: Double?,
+        currency: String,
+    ) -> Unit,
 ) {
     var bankName by remember { mutableStateOf(editing?.bankName ?: "") }
     var accountNumber by remember { mutableStateOf(editing?.accountNumber ?: "") }
     var agency by remember { mutableStateOf(editing?.agency ?: "") }
     var balance by remember { mutableStateOf(editing?.balance?.let { if (it == 0.0) "" else it.toString() } ?: "") }
+    var creditLimit by remember { mutableStateOf(editing?.creditLimit?.toString() ?: "") }
     var currency by remember { mutableStateOf(editing?.currency ?: "BRL") }
     var currencyMenuExpanded by remember { mutableStateOf(false) }
 
@@ -336,6 +347,20 @@ private fun AccountForm(
             colors = fieldColors(),
             shape = RoundedCornerShape(12.dp),
         )
+        Spacer(Modifier.height(12.dp))
+
+        OutlinedTextField(
+            value = creditLimit,
+            onValueChange = { creditLimit = filterAmountInput(it) },
+            label = { Text("Limite de crédito (opcional)") },
+            supportingText = { Text("É uma referência; não entra no saldo.") },
+            placeholder = { Text("0,00") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+            colors = fieldColors(),
+            shape = RoundedCornerShape(12.dp),
+        )
         Spacer(Modifier.height(16.dp))
 
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -353,6 +378,7 @@ private fun AccountForm(
                         accountNumber.trim().ifBlank { null },
                         agency.trim().ifBlank { null },
                         parseAmountInput(balance),
+                        parseAmountInput(creditLimit),
                         currency,
                     )
                 },
@@ -428,6 +454,21 @@ private fun AccountCard(
             color = TextDisabled,
             fontSize = 11.sp,
         )
+        account.creditLimit?.let { limit ->
+            Spacer(Modifier.height(10.dp))
+            Text(
+                "Limite de crédito · não é saldo",
+                color = WarningAmber,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                cfg.format(limit),
+                color = TextPrimary,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+            )
+        }
         Spacer(Modifier.height(12.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             Text(

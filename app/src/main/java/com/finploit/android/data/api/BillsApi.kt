@@ -3,6 +3,7 @@ package com.finploit.android.data.api
 import com.finploit.android.data.dto.BillItemDto
 import com.finploit.android.data.dto.BillsResponse
 import com.finploit.android.data.dto.CreateBillRequest
+import com.finploit.android.data.dto.MonthlyBillsForecastDto
 import com.finploit.android.data.dto.PayBody
 import com.finploit.android.data.dto.UpdateBillRequest
 import retrofit2.http.Body
@@ -16,6 +17,9 @@ import retrofit2.http.Query
 interface BillsApi {
     @GET("bills")
     suspend fun getBills(@Query("month") month: String?): BillsResponse
+
+    @GET("bills/forecast")
+    suspend fun getForecast(@Query("months") months: Int = 10): MonthlyBillsForecastDto
 
     @POST("bills")
     suspend fun create(@Body body: CreateBillRequest): BillItemDto

@@ -29,6 +29,23 @@ data class BillsForecastDto(
     val unconvertedCurrencies: List<String>? = null,
 )
 
+/** A fila dos próximos meses, já convertida pelo servidor. */
+data class MonthlyBillsForecastDto(
+    val months: List<BillMonthForecastDto> = emptyList(),
+    val heaviest: String? = null,
+    val relief: String? = null,
+    val displayCurrency: String = "BRL",
+    val rateDate: String? = null,
+    val unconvertedCurrencies: List<String> = emptyList(),
+)
+
+data class BillMonthForecastDto(
+    val month: String = "",
+    val expense: Double = 0.0,
+    val income: Double = 0.0,
+    val net: Double = 0.0,
+)
+
 /**
  * Uma conta bancária e o que lhe vai acontecer até ao fim do mês.
  *
@@ -76,6 +93,7 @@ data class BillItemDto(
     val id: Int = 0,
     /** Dono da conta — o workspace é do casal, e o ecrã filtra por pessoa. */
     val userId: Int? = null,
+    val recurringId: Int? = null,
     val description: String = "",
     val amount: Double = 0.0,
     val paidAmount: Double? = null,
@@ -91,6 +109,9 @@ data class BillItemDto(
     val paidAt: String? = null,
     val overdue: Boolean = false,
     val carriedOver: Boolean = false,
+    val installment: Int? = null,
+    val installments: Int? = null,
+    val until: String? = null,
 ) {
     val isPaid: Boolean get() = status == "paid"
     val isIncome: Boolean get() = type == "income"

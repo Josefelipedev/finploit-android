@@ -7,6 +7,7 @@ import com.finploit.android.data.dto.BillItemDto
 import com.finploit.android.data.dto.BillsForecastDto
 import com.finploit.android.data.dto.CreateBillRequest
 import com.finploit.android.data.dto.FinanceCategoryDto
+import com.finploit.android.data.dto.MonthlyBillsForecastDto
 import com.finploit.android.data.dto.UpdateBillRequest
 import com.finploit.android.data.repository.BankAccountRepository
 import com.finploit.android.data.repository.BillsRepository
@@ -75,6 +76,10 @@ data class BillsUiState(
     val incomePaid: Double = 0.0,
     val projectedBalance: Double = 0.0,
     val realizedBalance: Double = 0.0,
+    val unconvertedCurrencies: List<String> = emptyList(),
+    val monthlyForecast: MonthlyBillsForecastDto? = null,
+    val isForecastLoading: Boolean = true,
+    val forecastError: Boolean = false,
     /**
      * O que fica em cada conta bancária depois de pagar o que falta. Nulo num
      * mês já fechado — a previsão parte do saldo de hoje.
@@ -164,6 +169,7 @@ class BillsViewModel @Inject constructor(
         loadCategories()
         loadMyUserId()
         loadBankAccounts()
+        loadMonthlyForecast()
     }
 
     /**
@@ -187,6 +193,25 @@ class BillsViewModel @Inject constructor(
         viewModelScope.launch {
             categoryRepository.getCategories(active = true)
                 .onSuccess { list -> _uiState.value = _uiState.value.copy(categories = list) }
+        }
+    }
+
+    fun loadMonthlyForecast() {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isForecastLoading = true, forecastError = false)
+            repository.getForecast(10)
+                .onSuccess { forecast ->
+                    _uiState.value = _uiState.value.copy(
+                        monthlyForecast = forecast,
+                        isForecastLoading = false,
+                    )
+                }
+                .onFailure {
+                    _uiState.value = _uiState.value.copy(
+                        isForecastLoading = false,
+                        forecastError = true,
+                    )
+                }
         }
     }
 
@@ -234,6 +259,7 @@ class BillsViewModel @Inject constructor(
                 incomePaid = data?.income?.paid ?: 0.0,
                 projectedBalance = data?.projectedBalance ?: 0.0,
                 realizedBalance = data?.realizedBalance ?: 0.0,
+                unconvertedCurrencies = data?.unconvertedCurrencies.orEmpty(),
                 accountsForecast = data?.accounts,
                 error = if (result.isFailure) "Não foi possível carregar as contas." else null,
             )
@@ -253,6 +279,7 @@ class BillsViewModel @Inject constructor(
             val result = if (item.isPaid) repository.unpay(item.id) else repository.pay(item.id, amount)
             if (result.isSuccess) {
                 load(_uiState.value.month)
+                loadMonthlyForecast()
             } else {
                 _uiState.value = _uiState.value.copy(
                     error = "Não foi possível atualizar a conta. Tente novamente.",
@@ -286,6 +313,7 @@ class BillsViewModel @Inject constructor(
             _uiState.value = _uiState.value.copy(isSaving = false)
             if (result.isSuccess) {
                 load(_uiState.value.month)
+                loadMonthlyForecast()
             } else {
                 _uiState.value = _uiState.value.copy(error = "Não foi possível criar a conta. Tente novamente.")
             }
@@ -315,6 +343,7 @@ class BillsViewModel @Inject constructor(
             _uiState.value = _uiState.value.copy(isSaving = false)
             if (result.isSuccess) {
                 load(_uiState.value.month)
+                loadMonthlyForecast()
             } else {
                 _uiState.value = _uiState.value.copy(error = "Não foi possível editar a conta. Tente novamente.")
             }
@@ -326,6 +355,7 @@ class BillsViewModel @Inject constructor(
             val result = repository.deleteBill(id)
             if (result.isSuccess) {
                 load(_uiState.value.month)
+                loadMonthlyForecast()
             } else {
                 _uiState.value = _uiState.value.copy(error = "Não foi possível excluir a conta. Tente novamente.")
             }

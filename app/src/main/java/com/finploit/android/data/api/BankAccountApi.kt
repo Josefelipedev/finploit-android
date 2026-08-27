@@ -2,7 +2,7 @@ package com.finploit.android.data.api
 
 import com.finploit.android.data.dto.BankAccountDto
 import com.finploit.android.data.dto.CreateBankAccountRequest
-import com.finploit.android.data.dto.UpdateBankAccountRequest
+import com.google.gson.JsonObject
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.DELETE
@@ -21,7 +21,7 @@ interface BankAccountApi {
     @PATCH("bank-accounts/{id}")
     suspend fun update(
         @Path("id") id: Int,
-        @Body request: UpdateBankAccountRequest,
+        @Body request: JsonObject,
     ): BankAccountDto
 
     @DELETE("bank-accounts/{id}")

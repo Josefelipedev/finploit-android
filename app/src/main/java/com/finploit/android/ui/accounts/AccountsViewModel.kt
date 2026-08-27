@@ -55,11 +55,12 @@ class AccountsViewModel @Inject constructor(
         accountNumber: String?,
         agency: String?,
         balance: Double?,
+        creditLimit: Double?,
         currency: String,
     ) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isSaving = true, error = null)
-            repository.create(bankName, accountNumber, agency, balance, currency)
+            repository.create(bankName, accountNumber, agency, balance, creditLimit, currency)
                 .onSuccess {
                     _uiState.value = _uiState.value.copy(isSaving = false, message = "Conta criada!")
                     load()
@@ -79,11 +80,12 @@ class AccountsViewModel @Inject constructor(
         accountNumber: String?,
         agency: String?,
         balance: Double?,
+        creditLimit: Double?,
         currency: String?,
     ) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isSaving = true, error = null)
-            repository.update(id, bankName, accountNumber, agency, balance, currency)
+            repository.update(id, bankName, accountNumber, agency, balance, creditLimit, currency)
                 .onSuccess {
                     _uiState.value = _uiState.value.copy(isSaving = false, message = "Conta atualizada!")
                     load()

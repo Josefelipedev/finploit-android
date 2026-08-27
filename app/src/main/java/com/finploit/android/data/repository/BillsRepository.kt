@@ -4,6 +4,7 @@ import com.finploit.android.data.api.BillsApi
 import com.finploit.android.data.dto.BillItemDto
 import com.finploit.android.data.dto.BillsResponse
 import com.finploit.android.data.dto.CreateBillRequest
+import com.finploit.android.data.dto.MonthlyBillsForecastDto
 import com.finploit.android.data.dto.PayBody
 import com.finploit.android.data.dto.UpdateBillRequest
 import javax.inject.Inject
@@ -15,6 +16,9 @@ class BillsRepository @Inject constructor(
 ) {
     suspend fun getBills(month: String?): Result<BillsResponse> =
         runCatching { api.getBills(month) }
+
+    suspend fun getForecast(months: Int = 10): Result<MonthlyBillsForecastDto> =
+        runCatching { api.getForecast(months) }
 
     suspend fun createBill(request: CreateBillRequest): Result<BillItemDto> =
         runCatching { api.create(request) }

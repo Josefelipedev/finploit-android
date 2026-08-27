@@ -76,6 +76,7 @@ import com.finploit.android.data.dto.BankAccountDto
 import com.finploit.android.data.dto.BillItemDto
 import com.finploit.android.data.dto.BillsForecastDto
 import com.finploit.android.data.dto.FinanceCategoryDto
+import com.finploit.android.data.dto.MonthlyBillsForecastDto
 import com.finploit.android.ui.components.OwnerChip
 import com.finploit.android.ui.theme.BackgroundDark
 import com.finploit.android.ui.theme.CURRENCY_OPTIONS
@@ -210,15 +211,33 @@ fun BillsScreen(
                     }
                 }
 
-                uiState.items.isEmpty() -> Box(
-                    Modifier.fillMaxSize().padding(24.dp),
-                    contentAlignment = Alignment.Center,
+                uiState.items.isEmpty() -> LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
-                    Text(
-                        "Nenhuma conta para este mês. Toque no + para criar.",
-                        color = TextSecondary,
-                        fontSize = 14.sp,
-                    )
+                    item(key = "empty-month") {
+                        Text(
+                            "Nenhuma conta para este mês. Toque no + para criar.",
+                            color = TextSecondary,
+                            fontSize = 14.sp,
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
+                        )
+                    }
+                    item(key = "monthly-forecast") {
+                        MonthlyForecastSection(
+                            forecast = uiState.monthlyForecast,
+                            loading = uiState.isForecastLoading,
+                            failed = uiState.forecastError,
+                            onRetry = viewModel::loadMonthlyForecast,
+                        )
+                    }
+                    if (uiState.bankAccounts.any { it.creditLimit != null }) {
+                        item(key = "credit-limits") { CreditLimitsSection(uiState.bankAccounts) }
+                    }
+                    uiState.accountsForecast?.let { forecast ->
+                        item(key = "account-forecast") { AccountForecastSection(forecast) }
+                    }
                 }
 
                 else -> LazyColumn(
@@ -226,12 +245,6 @@ fun BillsScreen(
                     contentPadding = PaddingValues(20.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    // Os quatro totais em cima são do casal inteiro; estes
-                    // dizem em que conta é que o dinheiro fica.
-                    uiState.accountsForecast?.let { forecast ->
-                        item(key = "forecast") { AccountForecastSection(forecast) }
-                    }
-
                     item(key = "filters") {
                         BillFiltersBar(
                             state = uiState,
@@ -288,6 +301,22 @@ fun BillsScreen(
                                 onDelete = { deleteTarget = item },
                             )
                         }
+                    }
+
+                    item(key = "month-total") { CurrentMonthTotal(uiState) }
+                    item(key = "monthly-forecast") {
+                        MonthlyForecastSection(
+                            forecast = uiState.monthlyForecast,
+                            loading = uiState.isForecastLoading,
+                            failed = uiState.forecastError,
+                            onRetry = viewModel::loadMonthlyForecast,
+                        )
+                    }
+                    if (uiState.bankAccounts.any { it.creditLimit != null }) {
+                        item(key = "credit-limits") { CreditLimitsSection(uiState.bankAccounts) }
+                    }
+                    uiState.accountsForecast?.let { forecast ->
+                        item(key = "account-forecast") { AccountForecastSection(forecast) }
                     }
                 }
             }
@@ -935,6 +964,8 @@ private fun MonthNavigator(
 @Composable
 private fun SummaryHeader(state: BillsUiState) {
     val currency = LocalCurrencyConfig.current
+    val safe = state.unconvertedCurrencies.isEmpty()
+    fun money(value: Double) = if (safe) currency.format(value) else "—"
     Column(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -942,13 +973,13 @@ private fun SummaryHeader(state: BillsUiState) {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             SummaryTile(
                 label = "A Pagar",
-                value = currency.format(state.expensePending),
+                value = money(state.expensePending),
                 accent = ExpenseRed,
                 modifier = Modifier.weight(1f),
             )
             SummaryTile(
                 label = "A Receber",
-                value = currency.format(state.incomePending),
+                value = money(state.incomePending),
                 accent = IncomeGreen,
                 modifier = Modifier.weight(1f),
             )
@@ -956,16 +987,173 @@ private fun SummaryHeader(state: BillsUiState) {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             SummaryTile(
                 label = "Saldo Previsto",
-                value = currency.format(state.projectedBalance),
+                value = money(state.projectedBalance),
                 accent = if (state.projectedBalance >= 0) IncomeGreen else ExpenseRed,
                 modifier = Modifier.weight(1f),
             )
             SummaryTile(
                 label = "Saldo Realizado",
-                value = currency.format(state.realizedBalance),
+                value = money(state.realizedBalance),
                 accent = if (state.realizedBalance >= 0) IncomeGreen else ExpenseRed,
                 modifier = Modifier.weight(1f),
             )
+        }
+        if (!safe) {
+            Text(
+                "⚠️ Falta câmbio para ${state.unconvertedCurrencies.joinToString(", ")}. " +
+                    "Os totais ficam ocultos para não misturar moedas.",
+                color = WarningAmber,
+                fontSize = 11.sp,
+            )
+        }
+    }
+}
+
+@Composable
+private fun CurrentMonthTotal(state: BillsUiState) {
+    val safe = state.unconvertedCurrencies.isEmpty()
+    val currency = LocalCurrencyConfig.current
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = GreenPrimary.copy(alpha = 0.10f)),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column {
+                Text("TOTAL DE CONTAS DO MÊS", color = GreenPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Text("Pago + ainda por pagar", color = TextSecondary, fontSize = 11.sp)
+            }
+            Text(
+                if (safe) currency.format(state.expensePending + state.expensePaid) else "—",
+                color = TextPrimary,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+            )
+        }
+    }
+}
+
+@Composable
+private fun MonthlyForecastSection(
+    forecast: MonthlyBillsForecastDto?,
+    loading: Boolean,
+    failed: Boolean,
+    onRetry: () -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("PRÓXIMOS MESES", color = TextSecondary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = CardBackground),
+        ) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                when {
+                    loading -> Row(verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp), color = GreenPrimary, strokeWidth = 2.dp)
+                        Spacer(Modifier.width(10.dp))
+                        Text("A calcular os próximos 10 meses…", color = TextSecondary, fontSize = 12.sp)
+                    }
+
+                    failed -> {
+                        Text("Não foi possível calcular os próximos meses.", color = ExpenseRed, fontSize = 12.sp)
+                        TextButton(onClick = onRetry) { Text("Tentar outra vez", color = GreenPrimary) }
+                    }
+
+                    forecast != null -> {
+                        val safe = forecast.unconvertedCurrencies.isEmpty()
+                        if (!safe) {
+                            Text(
+                                "⚠️ Falta câmbio para ${forecast.unconvertedCurrencies.joinToString(", ")}. " +
+                                    "Os totais e o mês mais pesado ficam ocultos.",
+                                color = WarningAmber,
+                                fontSize = 11.sp,
+                            )
+                        }
+                        forecast.months.chunked(2).forEach { pair ->
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                pair.forEach { item ->
+                                    val heaviest = safe && item.month == forecast.heaviest
+                                    Column(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .background(
+                                                if (heaviest) ExpenseRed.copy(alpha = 0.10f) else SurfaceDark,
+                                                RoundedCornerShape(12.dp),
+                                            )
+                                            .padding(12.dp),
+                                    ) {
+                                        Text(monthLabel(item.month), color = TextSecondary, fontSize = 11.sp)
+                                        Spacer(Modifier.height(4.dp))
+                                        Text(
+                                            if (safe) currencyConfigByCode(forecast.displayCurrency).format(item.expense) else "—",
+                                            color = TextPrimary,
+                                            fontSize = 15.sp,
+                                            fontWeight = FontWeight.Bold,
+                                        )
+                                        if (heaviest) {
+                                            Text("Mais pesado", color = ExpenseRed, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                }
+                                if (pair.size == 1) Spacer(Modifier.weight(1f))
+                            }
+                        }
+                        if (safe && forecast.heaviest != null) {
+                            Text(
+                                "${monthLabel(forecast.heaviest)} é o mês mais pesado.",
+                                color = TextPrimary,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                        }
+                        forecast.relief?.takeIf { safe }?.let { relief ->
+                            Text(
+                                "A despesa alivia de forma sustentada a partir de ${monthLabel(relief)}.",
+                                color = GreenPrimary,
+                                fontSize = 12.sp,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CreditLimitsSection(accounts: List<BankAccountDto>) {
+    val withLimit = accounts.filter { it.creditLimit != null }
+    if (withLimit.isEmpty()) return
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("LIMITES DE CRÉDITO", color = TextSecondary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = CardBackground),
+        ) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                withLimit.forEach { account ->
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(account.bankName, color = TextPrimary, fontSize = 13.sp)
+                        Text(
+                            currencyConfigByCode(account.currency).format(account.creditLimit!!),
+                            color = TextPrimary,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                }
+                Text(
+                    "⚠️ Limite de crédito e Pix crédito não são dinheiro livre.",
+                    color = WarningAmber,
+                    fontSize = 11.sp,
+                )
+            }
         }
     }
 }
@@ -1151,6 +1339,10 @@ private fun BillCard(
                     }
                     Text("Vence ${formatDueDate(item.dueDate)}", color = TextSecondary, fontSize = 12.sp)
                 }
+                installmentLabel(item)?.let { label ->
+                    Spacer(Modifier.height(4.dp))
+                    Text(label, color = GreenPrimary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                }
                 // O chip de autoria só aparece no workspace do casal; os outros
                 // dois só quando há o que assinalar.
                 val owner = LocalOwnerNaming.current.nameOf(item.userId)
@@ -1234,6 +1426,20 @@ private fun monthLabel(month: String): String = runCatching {
         .replaceFirstChar { it.uppercase(ptBR) }
     "$name ${ym.year}"
 }.getOrElse { month }
+
+private fun installmentLabel(item: BillItemDto): String? {
+    val parts = mutableListOf<String>()
+    if (item.installment != null && item.installments != null) {
+        parts += "${item.installment} de ${item.installments}"
+    }
+    item.until?.take(7)?.let { key ->
+        runCatching { YearMonth.parse(key) }.getOrNull()?.let { ym ->
+            val short = ym.month.getDisplayName(TextStyle.SHORT, ptBR).removeSuffix(".")
+            parts += "até $short/${ym.year.toString().takeLast(2)}"
+        }
+    }
+    return parts.takeIf { it.isNotEmpty() }?.joinToString(" · ")
+}
 
 /** Default due date for a new bill: today if within the displayed month, else the 1st of that month. */
 private fun defaultDueDate(month: String): String = runCatching {
