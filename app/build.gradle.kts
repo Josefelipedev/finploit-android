@@ -15,8 +15,8 @@ android {
         applicationId = "com.finploit.android"
         minSdk = 26
         targetSdk = 35
-        versionCode = 48
-        versionName = "2.15.1"
+        versionCode = 49
+        versionName = "2.15.2"
 
         buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:5009/\"")
         buildConfigField(

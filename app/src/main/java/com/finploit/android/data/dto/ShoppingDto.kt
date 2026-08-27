@@ -63,13 +63,16 @@ val ShoppingItemDto.itemPrice: Double
  * 10,00 € somavam 10,00 €. Quantidade ausente ou sem sentido conta como 1.
  */
 val ShoppingItemDto.lineTotal: Double
-    get() = itemPrice * (quantity.takeIf { it > 0 } ?: 1.0)
+    get() = if (isStalePrice) 0.0 else itemPrice * (quantity.takeIf { it > 0 } ?: 1.0)
 
 /**
- * A partir de quantos dias o preço de um supermercado deixa de dizer alguma
- * coisa sobre hoje. As promoções mudam à semana.
+ * A partir de quantos dias o preço de um supermercado deixa de servir.
+ *
+ * Um mês: as promoções mudam à semana, mas um preço de há dez dias ainda diz
+ * mais do que nada. Passado um mês já não é estimativa, é palpite — e deixa de
+ * contar para o total, embora continue à vista na linha com a idade ao lado.
  */
-const val MAX_SCRAPED_AGE_DAYS = 7
+const val MAX_SCRAPED_AGE_DAYS = 30
 
 /** Há quantos dias este preço foi lido na loja; null se nunca foi. */
 val ShoppingItemDto.scrapedAgeInDays: Long?
