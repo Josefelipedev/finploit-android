@@ -12,9 +12,9 @@ data class ShoppingListDto(
 ) {
     val isClosed: Boolean get() = closedAt != null
 
-    /** O que vira despesa ao fechar: só os comprados, scraper à frente do manual. */
+    /** O que vira despesa ao fechar: só os comprados, pela regra do `itemPrice`. */
     val purchasedTotal: Double
-        get() = items.filter { it.purchased }.sumOf { it.scrapedPrice ?: it.price ?: 0.0 }
+        get() = items.filter { it.purchased }.sumOf { it.itemPrice }
 }
 
 /** Corpo do fecho: o valor é somado no servidor, o cliente só escolhe onde e quando. */
@@ -36,6 +36,27 @@ data class ShoppingItemDto(
     val scrapedPrice: Double? = null,
     val scrapedAt: String? = null,
 )
+
+/**
+ * Quanto conta um item — o espelho do `item-price.ts` da API.
+ *
+ * O preço do scraper ganhava ao escrito à mão (`scrapedPrice ?: price`), aqui e
+ * em mais sete sítios entre os três clientes. A linha e o total discordavam: o
+ * ecrã mostrava o "pão" a 10,00 € — o que a pessoa escreveu — e o total dizia
+ * 0,15 €, o preço que o Pingo Doce tinha no site cinco semanas antes. Era esse
+ * que fechar a compra lançava no livro-razão.
+ *
+ * Manda o preço **escrito à mão**: é uma afirmação da pessoa sobre o dinheiro
+ * dela. O do scraper fica à vista na linha, como referência, e preenche quando
+ * não há preço escrito — o formulário grava **0** (não `null`) quando não se
+ * toca no campo, por isso o teste é `> 0`.
+ */
+val ShoppingItemDto.itemPrice: Double
+    get() = price?.takeIf { it > 0 } ?: scrapedPrice ?: price ?: 0.0
+
+/** true quando o valor deste item veio do scraper, não da pessoa. */
+val ShoppingItemDto.isEstimatedPrice: Boolean
+    get() = (price == null || price <= 0) && (scrapedPrice ?: 0.0) > 0
 
 data class CreateShoppingListRequest(val name: String)
 

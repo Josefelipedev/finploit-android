@@ -69,6 +69,7 @@ import com.finploit.android.ui.theme.Green80
 import com.finploit.android.ui.theme.LocalCurrencyConfig
 import com.finploit.android.ui.theme.SurfaceDark
 import com.finploit.android.ui.theme.TextDisabled
+import com.finploit.android.data.dto.itemPrice
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -193,8 +194,10 @@ fun ShoppingListDetailScreen(
             )
 
             val purchased = list.items.count { it.purchased }
-            val scrapedTotal = list.items.sumOf { it.scrapedPrice ?: it.price ?: 0.0 }
-            val total = list.items.sumOf { it.price ?: 0.0 }
+            // O total é o que a lista vale pela regra do `itemPrice`; a linha do
+            // scraper fica como referência, não como o número que manda.
+            val total = list.items.sumOf { it.itemPrice }
+            val scrapedTotal = list.items.sumOf { it.scrapedPrice ?: 0.0 }
 
             Row(
                 modifier = Modifier
@@ -205,9 +208,9 @@ fun ShoppingListDetailScreen(
                 Text("$purchased/${list.items.size} itens", color = Color.Gray, fontSize = 13.sp)
                 Column(horizontalAlignment = Alignment.End) {
                     if (scrapedTotal > 0 && scrapedTotal != total) {
-                        Text("Scraper: ${LocalCurrencyConfig.current.format(scrapedTotal)}", color = GreenPrimary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        Text("Nas lojas: ${LocalCurrencyConfig.current.format(scrapedTotal)}", color = GreenPrimary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                     }
-                    if (total > 0) Text("Estimado: ${LocalCurrencyConfig.current.format(total)}", color = Green80, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    if (total > 0) Text("Total: ${LocalCurrencyConfig.current.format(total)}", color = Green80, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                 }
             }
 
