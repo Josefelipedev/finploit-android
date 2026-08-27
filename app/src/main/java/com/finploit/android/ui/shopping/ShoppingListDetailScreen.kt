@@ -71,6 +71,9 @@ import com.finploit.android.ui.theme.SurfaceDark
 import com.finploit.android.ui.theme.TextDisabled
 import com.finploit.android.data.dto.itemPrice
 import com.finploit.android.data.dto.lineTotal
+import com.finploit.android.data.dto.isStalePrice
+import com.finploit.android.data.dto.scrapedAgeInDays
+import com.finploit.android.ui.theme.currencyConfigByCode
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -475,12 +478,30 @@ private fun ShoppingItemRow(
                                     Text(supermarketLabel, color = GreenPrimary, fontSize = 11.sp, fontWeight = FontWeight.Medium)
                                     Spacer(Modifier.width(4.dp))
                                 }
+                                // O preço é da LOJA: na moeda dela (os
+                                // supermercados ligados são portugueses) e com
+                                // a idade à vista — mostrava-se com o símbolo de
+                                // quem olha e sem dizer de quando era.
                                 Text(
-                                    LocalCurrencyConfig.current.format(item.scrapedPrice),
+                                    currencyConfigByCode(
+                                        item.scrapedCurrency ?: LocalCurrencyConfig.current.code,
+                                    ).format(item.scrapedPrice),
                                     color = GreenPrimary,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
                                 )
+                                item.scrapedAgeInDays?.let { idade ->
+                                    Spacer(Modifier.width(4.dp))
+                                    Text(
+                                        when (idade) {
+                                            0L -> "hoje"
+                                            1L -> "ontem"
+                                            else -> "há $idade dias"
+                                        },
+                                        color = if (item.isStalePrice) Color(0xFFFFAB40) else Color.Gray,
+                                        fontSize = 11.sp,
+                                    )
+                                }
                             }
                         }
                     }

@@ -34,6 +34,8 @@ data class ShoppingItemDto(
     val shoppingListId: Int,
     val supermarket: String? = null,
     val scrapedPrice: Double? = null,
+    /** Moeda em que a loja publicou o preço — é do país dela, não de quem olha. */
+    val scrapedCurrency: String? = null,
     val scrapedAt: String? = null,
 )
 
@@ -62,6 +64,29 @@ val ShoppingItemDto.itemPrice: Double
  */
 val ShoppingItemDto.lineTotal: Double
     get() = itemPrice * (quantity.takeIf { it > 0 } ?: 1.0)
+
+/**
+ * A partir de quantos dias o preço de um supermercado deixa de dizer alguma
+ * coisa sobre hoje. As promoções mudam à semana.
+ */
+const val MAX_SCRAPED_AGE_DAYS = 7
+
+/** Há quantos dias este preço foi lido na loja; null se nunca foi. */
+val ShoppingItemDto.scrapedAgeInDays: Long?
+    get() = scrapedAt?.let {
+        runCatching {
+            val lido = java.time.Instant.parse(if (it.endsWith("Z")) it else it + "Z")
+            java.time.Duration.between(lido, java.time.Instant.now()).toDays()
+        }.getOrNull()
+    }
+
+/**
+ * true quando o valor desta linha é um preço de loja velho de mais para se
+ * apresentar como se fosse de hoje. Continua a contar — é a única estimativa
+ * que há —, mas quem o mostra tem de o dizer.
+ */
+val ShoppingItemDto.isStalePrice: Boolean
+    get() = isEstimatedPrice && (scrapedAgeInDays ?: 0L) > MAX_SCRAPED_AGE_DAYS
 
 /** true quando o valor deste item veio do scraper, não da pessoa. */
 val ShoppingItemDto.isEstimatedPrice: Boolean
