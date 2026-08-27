@@ -57,6 +57,7 @@ import com.finploit.android.ui.theme.ExpenseRed
 import com.finploit.android.ui.theme.Green80
 import com.finploit.android.ui.theme.SurfaceDark
 import com.finploit.android.ui.theme.LocalCurrencyConfig
+import com.finploit.android.ui.theme.currencyConfigByCode
 import com.finploit.android.ui.theme.TextDisabled
 import com.finploit.android.util.parseAmountInput
 
@@ -130,7 +131,7 @@ fun GoalsScreen(viewModel: GoalsViewModel) {
 
     uiState.depositingGoal?.let { goal ->
         DepositDialog(
-            goalName = goal.name,
+            goal = goal,
             isSaving = uiState.isDepositing,
             onConfirm = { amount, ledger -> viewModel.deposit(amount, ledger) },
             onDismiss = viewModel::cancelDeposit,
@@ -147,12 +148,15 @@ fun GoalsScreen(viewModel: GoalsViewModel) {
  */
 @Composable
 private fun DepositDialog(
-    goalName: String,
+    goal: GoalDto,
     isSaving: Boolean,
     onConfirm: (Double, Boolean) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val currency = LocalCurrencyConfig.current
+    val goalName = goal.name
+    // O servidor grava o depósito na moeda da meta e recusa vincular-lhe um
+    // lançamento de outra: o campo tem de pedir o valor nessa moeda.
+    val currency = goal.currency?.let { currencyConfigByCode(it) } ?: LocalCurrencyConfig.current
     var amount by remember { mutableStateOf("") }
     var ledger by remember { mutableStateOf(true) }
 
@@ -217,7 +221,9 @@ private fun DepositDialog(
 
 @Composable
 private fun GoalCard(goal: GoalDto, onDelete: () -> Unit, onDeposit: () -> Unit) {
-    val currency = LocalCurrencyConfig.current
+    // A moeda é da META, não de quem olha. Com a do perfil, uma meta de 5000
+    // reais lia-se `€ 5000.00` a quem tem euros — seis vezes o que lá está.
+    val currency = goal.currency?.let { currencyConfigByCode(it) } ?: LocalCurrencyConfig.current
     val current = goal.currentValue ?: 0.0
     val progress = if (goal.targetValue > 0) (current / goal.targetValue).toFloat().coerceIn(0f, 1f) else 0f
     val percent = (progress * 100).toInt()

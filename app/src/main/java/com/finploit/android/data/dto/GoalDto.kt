@@ -30,6 +30,8 @@ data class UpdateGoalPaceRequest(
 data class CreateGoalRequest(
     val name: String,
     val targetValue: Double,
+    /** A moeda em que a meta soma. Nula, o servidor herda a do utilizador. */
+    val currency: String? = null,
     val currentValue: Double? = null,
     val description: String? = null,
     val status: String? = "ACTIVE",

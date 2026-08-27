@@ -44,13 +44,21 @@ class GoalsViewModel @Inject constructor(
         }
     }
 
-    fun createGoal(name: String, targetValue: Double, currentValue: Double?, description: String?, endDate: String?) {
+    fun createGoal(
+        name: String,
+        targetValue: Double,
+        currentValue: Double?,
+        description: String?,
+        endDate: String?,
+        currency: String? = null,
+    ) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isSaving = true, saveError = null, saveSuccess = false)
             repository.createGoal(
                 CreateGoalRequest(
                     name = name,
                     targetValue = targetValue,
+                    currency = currency,
                     currentValue = currentValue,
                     description = description?.ifBlank { null },
                     endDate = endDate?.ifBlank { null },

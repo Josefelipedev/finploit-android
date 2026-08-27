@@ -17,6 +17,10 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -42,7 +46,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.finploit.android.ui.theme.Green80
+import com.finploit.android.ui.theme.CURRENCY_OPTIONS
 import com.finploit.android.ui.theme.LocalCurrencyConfig
+import com.finploit.android.ui.theme.currencyConfigByCode
 import com.finploit.android.ui.theme.SurfaceDark
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -58,6 +64,13 @@ fun AddGoalScreen(
     var targetValue by remember { mutableStateOf("") }
     var currentValue by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
+    // A meta soma na SUA moeda: o servidor grava-a, o depósito é feito nela e
+    // um lançamento de outra moeda nem sequer se lhe consegue vincular.
+    // Começa na do perfil, que é o palpite certo na esmagadora maioria das
+    // vezes, mas quem poupa noutra moeda passa a poder dizê-lo.
+    var currencyCode by remember { mutableStateOf<String?>(null) }
+    var currencyMenuExpanded by remember { mutableStateOf(false) }
+    val selectedCurrency = currencyCode?.let { currencyConfigByCode(it) } ?: LocalCurrencyConfig.current
 
     LaunchedEffect(uiState.saveSuccess) {
         if (uiState.saveSuccess) { viewModel.clearSaveState(); onDismiss() }
@@ -101,10 +114,45 @@ fun AddGoalScreen(
                 colors = fieldColors(),
                 shape = RoundedCornerShape(12.dp),
             )
+            // Currency picker
+            ExposedDropdownMenuBox(
+                expanded = currencyMenuExpanded,
+                onExpandedChange = { currencyMenuExpanded = it },
+            ) {
+                OutlinedTextField(
+                    value = "${selectedCurrency.flag} ${selectedCurrency.code} — ${selectedCurrency.label}",
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Moeda") },
+                    trailingIcon = {
+                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = currencyMenuExpanded)
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .menuAnchor(MenuAnchorType.PrimaryNotEditable),
+                    colors = fieldColors(),
+                    shape = RoundedCornerShape(12.dp),
+                )
+                ExposedDropdownMenu(
+                    expanded = currencyMenuExpanded,
+                    onDismissRequest = { currencyMenuExpanded = false },
+                    containerColor = SurfaceDark,
+                ) {
+                    CURRENCY_OPTIONS.forEach { cfg ->
+                        DropdownMenuItem(
+                            text = { Text("${cfg.flag} ${cfg.code} — ${cfg.label}", color = Color.White) },
+                            onClick = {
+                                currencyCode = cfg.code
+                                currencyMenuExpanded = false
+                            },
+                        )
+                    }
+                }
+            }
             OutlinedTextField(
                 value = targetValue,
                 onValueChange = { targetValue = it.filter { c -> c.isDigit() || c == '.' } },
-                label = { Text("Valor alvo (${LocalCurrencyConfig.current.symbol})") },
+                label = { Text("Valor alvo (${selectedCurrency.symbol})") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
@@ -114,7 +162,7 @@ fun AddGoalScreen(
             OutlinedTextField(
                 value = currentValue,
                 onValueChange = { currentValue = it.filter { c -> c.isDigit() || c == '.' } },
-                label = { Text("Valor atual (opcional)") },
+                label = { Text("Valor atual (${selectedCurrency.symbol}, opcional)") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
@@ -141,6 +189,7 @@ fun AddGoalScreen(
                         currentValue = currentValue.toDoubleOrNull(),
                         description = description,
                         endDate = null,
+                        currency = selectedCurrency.code,
                     )
                 },
                 enabled = name.isNotBlank() && targetValue.toDoubleOrNull() != null && !uiState.isSaving,

@@ -19,6 +19,9 @@ val CURRENCY_OPTIONS = listOf(
     CurrencyConfig("EUR", "€",   "🇪🇺", "Euro",                  Locale("pt", "PT")),
     CurrencyConfig("USD", "$",   "🇺🇸", "Dólar Americano",       Locale.US),
     CurrencyConfig("GBP", "£",   "🇬🇧", "Libra Esterlina",       Locale.UK),
+    // O iene faltava aqui e existe na web e no enum do servidor: quem o
+    // escolhesse caía no `first()` e via os seus ienes rotulados com R$.
+    CurrencyConfig("JPY", "¥",   "🇯🇵", "Iene Japonês",          Locale.JAPAN),
     CurrencyConfig("AOA", "Kz",  "🇦🇴", "Kwanza Angolano",       Locale("pt", "AO")),
     CurrencyConfig("MZN", "MT",  "🇲🇿", "Metical Moçambicano",   Locale("pt", "MZ")),
     CurrencyConfig("CHF", "CHF", "🇨🇭", "Franco Suíço",          Locale("de", "CH")),
