@@ -22,6 +22,7 @@ class BankAccountRepository @Inject constructor(
         agency: String?,
         balance: Double?,
         creditLimit: Double?,
+        creditUsed: Double?,
         currency: String,
         iconName: String? = null,
     ): Result<BankAccountDto> = runCatching {
@@ -32,6 +33,7 @@ class BankAccountRepository @Inject constructor(
                 agency = agency,
                 balance = balance,
                 creditLimit = creditLimit,
+                creditUsed = creditUsed,
                 currency = currency,
                 iconName = iconName,
             )
@@ -45,6 +47,7 @@ class BankAccountRepository @Inject constructor(
         agency: String? = null,
         balance: Double? = null,
         creditLimit: Double? = null,
+        creditUsed: Double? = null,
         currency: String? = null,
         iconName: String? = null,
     ): Result<BankAccountDto> = runCatching {
@@ -60,6 +63,8 @@ class BankAccountRepository @Inject constructor(
             // pôr o limite em "não informado", em vez de manter o valor antigo.
             if (creditLimit == null) add("creditLimit", JsonNull.INSTANCE)
             else addProperty("creditLimit", creditLimit)
+            if (creditUsed == null) add("creditUsed", JsonNull.INSTANCE)
+            else addProperty("creditUsed", creditUsed)
         }
         api.update(
             id,

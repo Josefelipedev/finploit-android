@@ -1138,14 +1138,30 @@ private fun CreditLimitsSection(accounts: List<BankAccountDto>) {
         ) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 withLimit.forEach { account ->
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    // O número que interessa é o que ainda dá para gastar. Sem
+                    // débito escrito, mostra-se o limite e diz-se que é isso —
+                    // chamar "disponível" a um limite seria inventar.
+                    val cfg = currencyConfigByCode(account.currency)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
                         Text(account.bankName, color = TextPrimary, fontSize = 13.sp)
-                        Text(
-                            currencyConfigByCode(account.currency).format(account.creditLimit!!),
-                            color = TextPrimary,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                        )
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text(
+                                cfg.format(account.creditAvailable ?: account.creditLimit!!),
+                                color = TextPrimary,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                            )
+                            Text(
+                                if (account.creditAvailable != null)
+                                    "disponível de ${cfg.format(account.creditLimit!!)}"
+                                else "limite · débito não informado",
+                                color = TextSecondary,
+                                fontSize = 10.sp,
+                            )
+                        }
                     }
                 }
                 Text(

@@ -149,7 +149,7 @@ fun AccountsScreen(
                             showForm = false
                             editingAccount = null
                         },
-                        onSubmit = { bankName, accountNumber, agency, balance, creditLimit, currency ->
+                        onSubmit = { bankName, accountNumber, agency, balance, creditLimit, creditUsed, currency ->
                             val editing = editingAccount
                             if (editing != null) {
                                 viewModel.updateAccount(
@@ -159,6 +159,7 @@ fun AccountsScreen(
                                     agency = agency,
                                     balance = balance,
                                     creditLimit = creditLimit,
+                                    creditUsed = creditUsed,
                                     currency = currency,
                                 )
                             } else {
@@ -168,6 +169,7 @@ fun AccountsScreen(
                                     agency = agency,
                                     balance = balance,
                                     creditLimit = creditLimit,
+                                    creditUsed = creditUsed,
                                     currency = currency,
                                 )
                             }
@@ -241,6 +243,7 @@ private fun AccountForm(
         agency: String?,
         balance: Double?,
         creditLimit: Double?,
+        creditUsed: Double?,
         currency: String,
     ) -> Unit,
 ) {
@@ -249,6 +252,7 @@ private fun AccountForm(
     var agency by remember { mutableStateOf(editing?.agency ?: "") }
     var balance by remember { mutableStateOf(editing?.balance?.let { if (it == 0.0) "" else it.toString() } ?: "") }
     var creditLimit by remember { mutableStateOf(editing?.creditLimit?.toString() ?: "") }
+    var creditUsed by remember { mutableStateOf(editing?.creditUsed?.toString() ?: "") }
     var currency by remember { mutableStateOf(editing?.currency ?: "BRL") }
     var currencyMenuExpanded by remember { mutableStateOf(false) }
 
@@ -361,6 +365,32 @@ private fun AccountForm(
             colors = fieldColors(),
             shape = RoundedCornerShape(12.dp),
         )
+
+        Spacer(Modifier.height(12.dp))
+
+        // "Disponível" é conta: limite menos o que já se deve. Sem este campo,
+        // o número no ecrã das contas era o limite total — que não diz o que
+        // ainda dá para gastar.
+        OutlinedTextField(
+            value = creditUsed,
+            onValueChange = { creditUsed = filterAmountInput(it) },
+            label = { Text("Em débito (opcional)") },
+            supportingText = {
+                val disponivel = creditLimit.toDoubleOrNull()?.let { limite ->
+                    creditUsed.toDoubleOrNull()?.let { usado -> limite - usado }
+                }
+                Text(
+                    if (disponivel != null) "Disponível: ${currency.format(disponivel)}"
+                    else "O que já deve neste cartão.",
+                )
+            },
+            placeholder = { Text("0,00") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+            colors = fieldColors(),
+            shape = RoundedCornerShape(12.dp),
+        )
         Spacer(Modifier.height(16.dp))
 
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -379,6 +409,7 @@ private fun AccountForm(
                         agency.trim().ifBlank { null },
                         parseAmountInput(balance),
                         parseAmountInput(creditLimit),
+                        parseAmountInput(creditUsed),
                         currency,
                     )
                 },

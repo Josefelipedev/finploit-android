@@ -17,6 +17,10 @@ data class BankAccountDto(
     val currentBalance: Double? = null,
     /** Limite informado. Nunca participa do saldo. */
     val creditLimit: Double? = null,
+    /** Quanto do limite já está em dívida. */
+    val creditUsed: Double? = null,
+    /** `creditLimit − creditUsed`, quando os dois se sabem. */
+    val creditAvailable: Double? = null,
     /** O que os lançamentos ligados a esta conta somam. */
     val movements: AccountMovementsDto? = null,
     val iconName: String? = null,
@@ -36,6 +40,10 @@ data class CreateBankAccountRequest(
     val agency: String? = null,
     val balance: Double? = null,
     val creditLimit: Double? = null,
+    /** Quanto do limite já está em dívida. */
+    val creditUsed: Double? = null,
+    /** `creditLimit − creditUsed`, quando os dois se sabem. */
+    val creditAvailable: Double? = null,
     val currency: String,
     val iconName: String? = null,
 )
@@ -46,6 +54,10 @@ data class UpdateBankAccountRequest(
     val agency: String? = null,
     val balance: Double? = null,
     val creditLimit: Double? = null,
+    /** Quanto do limite já está em dívida. */
+    val creditUsed: Double? = null,
+    /** `creditLimit − creditUsed`, quando os dois se sabem. */
+    val creditAvailable: Double? = null,
     val currency: String? = null,
     val iconName: String? = null,
 )
