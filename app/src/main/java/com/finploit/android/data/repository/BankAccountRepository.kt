@@ -25,12 +25,14 @@ class BankAccountRepository @Inject constructor(
         creditUsed: Double?,
         currency: String,
         iconName: String? = null,
+        accountType: String? = null,
     ): Result<BankAccountDto> = runCatching {
         api.create(
             CreateBankAccountRequest(
                 bankName = bankName,
                 accountNumber = accountNumber,
                 agency = agency,
+                accountType = accountType,
                 balance = balance,
                 creditLimit = creditLimit,
                 creditUsed = creditUsed,
@@ -50,11 +52,13 @@ class BankAccountRepository @Inject constructor(
         creditUsed: Double? = null,
         currency: String? = null,
         iconName: String? = null,
+        accountType: String? = null,
     ): Result<BankAccountDto> = runCatching {
         val body = JsonObject().apply {
             bankName?.let { addProperty("bankName", it) }
             accountNumber?.let { addProperty("accountNumber", it) }
             agency?.let { addProperty("agency", it) }
+            accountType?.let { addProperty("accountType", it) }
             balance?.let { addProperty("balance", it) }
             currency?.let { addProperty("currency", it) }
             iconName?.let { addProperty("iconName", it) }

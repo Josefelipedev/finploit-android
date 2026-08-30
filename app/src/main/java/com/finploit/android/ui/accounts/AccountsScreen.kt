@@ -27,6 +27,8 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
@@ -56,6 +58,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.finploit.android.data.dto.AccountType
 import com.finploit.android.data.dto.BankAccountDto
 import com.finploit.android.ui.theme.BackgroundDark
 import com.finploit.android.ui.theme.CardBackground
@@ -149,7 +152,7 @@ fun AccountsScreen(
                             showForm = false
                             editingAccount = null
                         },
-                        onSubmit = { bankName, accountNumber, agency, balance, creditLimit, creditUsed, currency ->
+                        onSubmit = { bankName, accountNumber, agency, balance, creditLimit, creditUsed, currency, accountType ->
                             val editing = editingAccount
                             if (editing != null) {
                                 viewModel.updateAccount(
@@ -161,6 +164,7 @@ fun AccountsScreen(
                                     creditLimit = creditLimit,
                                     creditUsed = creditUsed,
                                     currency = currency,
+                                    accountType = accountType.apiValue,
                                 )
                             } else {
                                 viewModel.createAccount(
@@ -171,6 +175,7 @@ fun AccountsScreen(
                                     creditLimit = creditLimit,
                                     creditUsed = creditUsed,
                                     currency = currency,
+                                    accountType = accountType.apiValue,
                                 )
                             }
                         },
@@ -245,6 +250,7 @@ private fun AccountForm(
         creditLimit: Double?,
         creditUsed: Double?,
         currency: String,
+        accountType: AccountType,
     ) -> Unit,
 ) {
     var bankName by remember { mutableStateOf(editing?.bankName ?: "") }
@@ -255,6 +261,7 @@ private fun AccountForm(
     var creditUsed by remember { mutableStateOf(editing?.creditUsed?.toString() ?: "") }
     var currency by remember { mutableStateOf(editing?.currency ?: "BRL") }
     var currencyMenuExpanded by remember { mutableStateOf(false) }
+    var accountType by remember { mutableStateOf(AccountType.from(editing?.accountType)) }
 
     val selectedCurrency = currencyConfigByCode(currency)
 
@@ -337,6 +344,30 @@ private fun AccountForm(
         }
         Spacer(Modifier.height(12.dp))
 
+        // O campo que faltava: até aqui a única maneira de dizer "isto é um
+        // cartão" era preencher o limite, e quem só queria marcar o tipo não
+        // tinha onde.
+        Text("Tipo de conta", color = TextSecondary, fontSize = 13.sp)
+        Spacer(Modifier.height(6.dp))
+        Row(modifier = Modifier.fillMaxWidth()) {
+            AccountType.entries.forEach { tipo ->
+                val ativo = accountType == tipo
+                FilterChip(
+                    selected = ativo,
+                    onClick = { accountType = tipo },
+                    label = { Text(tipo.label, fontSize = 12.sp) },
+                    colors = FilterChipDefaults.filterChipColors(
+                        containerColor = SurfaceDark,
+                        labelColor = TextSecondary,
+                        selectedContainerColor = GreenPrimary,
+                        selectedLabelColor = BackgroundDark,
+                    ),
+                    modifier = Modifier.padding(end = 6.dp),
+                )
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+
         OutlinedTextField(
             value = balance,
             onValueChange = { balance = filterAmountInput(it) },
@@ -411,6 +442,7 @@ private fun AccountForm(
                         parseAmountInput(creditLimit),
                         parseAmountInput(creditUsed),
                         currency,
+                        accountType,
                     )
                 },
                 enabled = !isSaving && bankName.isNotBlank(),
@@ -447,7 +479,8 @@ private fun AccountCard(
             Column(modifier = Modifier.weight(1f)) {
                 Text(account.bankName, color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 Text(
-                    account.accountNumber?.let { "Conta $it" } ?: "Sem número",
+                    AccountType.from(account.accountType).label +
+                        (account.accountNumber?.takeIf { it.isNotBlank() }?.let { " · $it" } ?: ""),
                     color = TextSecondary,
                     fontSize = 12.sp,
                 )

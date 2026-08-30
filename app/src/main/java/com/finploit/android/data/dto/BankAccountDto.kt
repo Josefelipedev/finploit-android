@@ -1,11 +1,28 @@
 package com.finploit.android.data.dto
 
+/**
+ * O que a conta é. Antes disto o único sinal de "isto é um cartão" era ter
+ * limite preenchido, e o formulário não tinha onde marcar o tipo.
+ */
+enum class AccountType(val apiValue: String, val label: String) {
+    CHECKING("CHECKING", "Conta corrente"),
+    SAVINGS("SAVINGS", "Poupança"),
+    CREDIT("CREDIT", "Cartão de crédito");
+
+    companion object {
+        fun from(value: String?): AccountType =
+            entries.firstOrNull { it.apiValue == value } ?: CHECKING
+    }
+}
+
 data class BankAccountDto(
     val id: Int,
     val currency: String = "BRL",
     val accountNumber: String? = null,
     val bankName: String = "",
     val agency: String? = null,
+    /** Corrente, poupança ou cartão. O servidor devolve sempre um. */
+    val accountType: String? = null,
     /**
      * Saldo INICIAL — o ponto de partida escrito à mão (C5). O que se mostra é
      * o `currentBalance`; este campo sozinho nunca acompanhou movimento nenhum.
@@ -38,6 +55,7 @@ data class CreateBankAccountRequest(
     val bankName: String,
     val accountNumber: String? = null,
     val agency: String? = null,
+    val accountType: String? = null,
     val balance: Double? = null,
     val creditLimit: Double? = null,
     /** Quanto do limite já está em dívida. */
@@ -52,6 +70,7 @@ data class UpdateBankAccountRequest(
     val bankName: String? = null,
     val accountNumber: String? = null,
     val agency: String? = null,
+    val accountType: String? = null,
     val balance: Double? = null,
     val creditLimit: Double? = null,
     /** Quanto do limite já está em dívida. */
