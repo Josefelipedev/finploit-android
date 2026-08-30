@@ -115,6 +115,24 @@ fun MonthlyReportScreen(
                                     Text(currency.format(balance), color = if (balance >= 0) IncomeGreen else ExpenseRed, fontWeight = FontWeight.Bold, fontSize = 20.sp)
                                 }
                             }
+                            // De quem é este número (C6). As partes somam os
+                            // totais acima — é a mesma soma, guardada por dono.
+                            if (state.byOwner.size > 1) {
+                                Spacer(Modifier.height(10.dp))
+                                state.byOwner.forEach { dono ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                    ) {
+                                        Text(primeiroNome(dono.name, dono.userId), color = TextDisabled, fontSize = 12.sp)
+                                        Text(
+                                            "${currency.format(dono.ganhos)}  ·  ${currency.format(dono.despesas)}",
+                                            color = TextSecondary,
+                                            fontSize = 12.sp,
+                                        )
+                                    }
+                                }
+                            }
                             Spacer(Modifier.height(8.dp))
                             Text("${state.transactionCount} transações", color = TextDisabled, fontSize = 12.sp)
                             if (state.unconvertedCurrencies.isNotEmpty()) {
@@ -149,6 +167,16 @@ fun MonthlyReportScreen(
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(cat.categoryName, color = TextPrimary, fontWeight = FontWeight.Medium, fontSize = 14.sp)
                                     Text("$pct% das despesas", color = TextDisabled, fontSize = 11.sp)
+                                    val donos = (cat.byOwner ?: emptyList()).filter { it.despesas > 0 }
+                                    if (donos.size > 1) {
+                                        Text(
+                                            donos.joinToString("  ·  ") {
+                                                "${primeiroNome(it.name, it.userId)} ${currency.format(it.despesas)}"
+                                            },
+                                            color = TextDisabled,
+                                            fontSize = 11.sp,
+                                        )
+                                    }
                                 }
                                 Text(currency.format(amount), color = ExpenseRed, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                             }
@@ -178,3 +206,7 @@ private fun buildReportText(state: MonthlyReportState, currency: CurrencyConfig)
     appendLine()
     appendLine("${state.transactionCount} transações no período")
 }
+
+/** "Maria Silva" → "Maria". O apelido não cabe na linha e não desambigua nada. */
+private fun primeiroNome(nome: String?, userId: Int): String =
+    nome?.trim()?.split(" ")?.firstOrNull()?.takeIf { it.isNotBlank() } ?: "#$userId"

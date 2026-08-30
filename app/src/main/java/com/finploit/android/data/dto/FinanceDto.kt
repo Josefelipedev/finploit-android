@@ -107,6 +107,22 @@ data class FinanceSummaryResponse(
     val transactionCount: Int = 0,
     /** Moedas que entraram no total sem conversão (sem taxa disponível). */
     val unconvertedCurrencies: List<String>? = null,
+    /** De quem são estes totais (C6). Uma entrada só = não há com quem repartir. */
+    val byOwner: List<OwnerSplitDto>? = null,
+)
+
+/**
+ * A parte de uma pessoa num total do casal (C6).
+ *
+ * As listas já diziam de quem era cada linha; os totais não. Vem já na moeda
+ * de quem pergunta, e as partes somam o total — é a mesma soma do servidor,
+ * guardada por dono pelo caminho.
+ */
+data class OwnerSplitDto(
+    val userId: Int,
+    val name: String? = null,
+    val ganhos: Double = 0.0,
+    val despesas: Double = 0.0,
 )
 
 data class CurrencyBreakdownDto(
@@ -121,6 +137,7 @@ data class CategoryBreakdownDto(
     val iconName: String? = null,
     val ganhos: Double = 0.0,
     val despesas: Double = 0.0,
+    val byOwner: List<OwnerSplitDto>? = null,
 )
 
 data class FinanceListResponse(

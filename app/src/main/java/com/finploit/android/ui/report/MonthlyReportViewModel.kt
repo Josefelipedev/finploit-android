@@ -3,6 +3,7 @@ package com.finploit.android.ui.report
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.finploit.android.data.dto.CategoryBreakdownDto
+import com.finploit.android.data.dto.OwnerSplitDto
 import com.finploit.android.data.repository.FinanceRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
@@ -22,6 +23,8 @@ data class MonthlyReportState(
     val displayCurrency: String? = null,
     /** Moedas somadas sem conversão — o total é aproximado enquanto isto não estiver vazio. */
     val unconvertedCurrencies: List<String> = emptyList(),
+    /** De quem são os totais (C6). Menos de dois = não há repartição a mostrar. */
+    val byOwner: List<OwnerSplitDto> = emptyList(),
     val error: String? = null,
 )
 
@@ -69,6 +72,7 @@ class MonthlyReportViewModel @Inject constructor(
                                 ?: emptyList(),
                             displayCurrency = summary.displayCurrency,
                             unconvertedCurrencies = summary.unconvertedCurrencies ?: emptyList(),
+                            byOwner = summary.byOwner ?: emptyList(),
                         )
                     }
                 }
