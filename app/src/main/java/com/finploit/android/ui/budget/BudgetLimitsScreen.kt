@@ -152,6 +152,17 @@ private fun BudgetLimitCard(
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
                     )
+                    // O limite que o cônjuge escreveu chega já convertido (C4).
+                    // Dizer em que moeda nasceu responde à pergunta antes de ela
+                    // ser feita: o número está certo, o original explica-o.
+                    val moedaOriginal = limit.originalCurrency
+                    if (moedaOriginal != null && moedaOriginal != (limit.currency ?: currency.code)) {
+                        Text(
+                            "definido em ${currencyConfigByCode(moedaOriginal).format(limit.originalMonthlyLimit ?: limit.monthlyLimit)}",
+                            color = TextDisabled,
+                            fontSize = 11.sp,
+                        )
+                    }
                 }
                 IconButton(onClick = onEdit) {
                     Icon(Icons.Default.Edit, contentDescription = "Editar", tint = TextDisabled, modifier = Modifier.size(18.dp))
