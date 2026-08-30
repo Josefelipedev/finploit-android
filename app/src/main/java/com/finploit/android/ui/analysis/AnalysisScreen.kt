@@ -150,6 +150,15 @@ fun AnalysisScreen(viewModel: AnalysisViewModel) {
                 }
 
                 // Categorias
+                analysis.unconvertedCurrencies?.takeIf { it.isNotEmpty() }?.let { moedas ->
+                    item {
+                        Text(
+                            "⚠️ ${moedas.joinToString(", ")} sem taxa de câmbio: os totais deste ecrã somam-nas pelo valor original.",
+                            color = TextDisabled,
+                            fontSize = 11.sp,
+                        )
+                    }
+                }
                 if (analysis.categorySummary.isNotEmpty()) {
                     item { SectionTitle("Gastos por Categoria") }
                     items(analysis.categorySummary.sortedByDescending { it.expense }) { cat ->
@@ -368,6 +377,17 @@ private fun CategoryRow(cat: CategorySummaryDto) {
                 Column(horizontalAlignment = Alignment.End) {
                     if (cat.expense > 0) Text(currency.format(cat.expense), color = ExpenseRed, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                     if (cat.income > 0) Text(currency.format(cat.income), color = IncomeGreen, fontSize = 12.sp)
+                    // De quem é este número (C6). As partes somam o total.
+                    val donos = (cat.byOwner ?: emptyList()).filter { it.expense > 0 }
+                    if (donos.size > 1) {
+                        Text(
+                            donos.joinToString("  ·  ") {
+                                "${it.name?.trim()?.split(" ")?.firstOrNull() ?: "#${it.userId}"} ${currency.format(it.expense)}"
+                            },
+                            color = TextDisabled,
+                            fontSize = 11.sp,
+                        )
+                    }
                 }
             }
             if (cat.expense > 0) {
