@@ -20,6 +20,7 @@ data class GlobalSearchState(
     val goals: List<GoalDto> = emptyList(),
     val shoppingLists: List<ShoppingListDto> = emptyList(),
     val isLoading: Boolean = false,
+    val error: String? = null,
 )
 
 @HiltViewModel
@@ -47,26 +48,55 @@ class GlobalSearchViewModel @Inject constructor(
     fun setQuery(q: String) {
         _state.update { it.copy(query = q) }
         queryFlow.value = q
-        if (q.length < 2) _state.update { it.copy(transactions = emptyList(), goals = emptyList(), shoppingLists = emptyList()) }
+        if (q.length < 2) {
+            _state.update {
+                it.copy(transactions = emptyList(), goals = emptyList(), shoppingLists = emptyList(), error = null)
+            }
+        }
+    }
+
+    /** Repete a última busca — o `queryFlow` não reemite um valor igual. */
+    fun retry() {
+        val q = _state.value.query
+        if (q.length >= 2) search(q)
     }
 
     private fun search(query: String) {
         viewModelScope.launch {
-            _state.update { it.copy(isLoading = true) }
+            _state.update { it.copy(isLoading = true, error = null) }
             // Percorre as páginas todas: com uma página só, quem tivesse mais de
             // 200 lançamentos não encontrava os mais antigos e a busca dizia que
             // não existiam.
             val txResult = financeRepository.getAllTransactions()
+            val goalResult = goalRepository.getGoals()
+            val listResult = shoppingRepository.getLists()
+
             val txs = txResult.map { it.data }.getOrDefault(emptyList()).filter { tx ->
                 tx.description?.contains(query, ignoreCase = true) == true
             }
-            val goals = goalRepository.getGoals().getOrDefault(emptyList()).filter { goal ->
+            val goals = goalResult.getOrDefault(emptyList()).filter { goal ->
                 goal.name.contains(query, ignoreCase = true)
             }
-            val lists = shoppingRepository.getLists().getOrDefault(emptyList()).filter { list ->
+            val lists = listResult.getOrDefault(emptyList()).filter { list ->
                 list.name.contains(query, ignoreCase = true)
             }
-            _state.update { it.copy(isLoading = false, transactions = txs, goals = goals, shoppingLists = lists) }
+
+            // As três falhas eram engolidas e o ecrã dizia "sem resultados" —
+            // indistinguível de a busca ter corrido bem e não haver nada. Basta
+            // uma falhar para o resultado estar incompleto, e um resultado
+            // incompleto que se anuncia como completo é a mentira que o T9
+            // fecha (a web já o corrigiu; o Android tinha ficado para trás).
+            val falhou = txResult.isFailure || goalResult.isFailure || listResult.isFailure
+
+            _state.update {
+                it.copy(
+                    isLoading = false,
+                    transactions = txs,
+                    goals = goals,
+                    shoppingLists = lists,
+                    error = if (falhou) "Não foi possível procurar. Tenta novamente." else null,
+                )
+            }
         }
     }
 }

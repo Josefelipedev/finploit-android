@@ -69,11 +69,52 @@ fun GlobalSearchScreen(
                     Text("Escreve para pesquisar", color = TextDisabled, fontSize = 14.sp)
                 }
             }
+            // O erro vem ANTES do vazio de propósito: sem este ramo, uma busca
+            // que falhou mostrava "sem resultados" e o utilizador concluía que o
+            // que procurava não existe (T9).
+            state.error != null && state.transactions.isEmpty() &&
+                state.goals.isEmpty() && state.shoppingLists.isEmpty() ->
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.padding(24.dp),
+                    ) {
+                        Text("⚠️", fontSize = 40.sp)
+                        Text(state.error!!, color = ExpenseRed, fontSize = 14.sp)
+                        TextButton(onClick = { viewModel.retry() }) {
+                            Text("Tentar novamente", color = GreenPrimary, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
             state.transactions.isEmpty() && state.goals.isEmpty() && state.shoppingLists.isEmpty() ->
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text("Sem resultados para \"${state.query}\"", color = TextDisabled)
                 }
             else -> LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Uma das três fontes falhou: há resultados, mas não são todos.
+                // Mostrá-los sem dizer isto era anunciar como completa uma lista
+                // que não é.
+                if (state.error != null) {
+                    item {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(ExpenseRed.copy(alpha = 0.12f), RoundedCornerShape(8.dp))
+                                .padding(12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text("⚠️", fontSize = 16.sp)
+                            Text(
+                                "Resultados incompletos: ${state.error}",
+                                color = ExpenseRed,
+                                fontSize = 12.sp,
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                    }
+                }
                 if (state.transactions.isNotEmpty()) {
                     item { SectionHeader("💰 Transações (${state.transactions.size})") }
                     items(state.transactions.take(5)) { tx ->
