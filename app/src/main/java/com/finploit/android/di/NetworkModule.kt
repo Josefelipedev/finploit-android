@@ -18,6 +18,7 @@ import com.finploit.android.data.api.PantryApi
 import com.finploit.android.data.api.ResponseUnwrapInterceptor
 import com.finploit.android.data.api.GoalApi
 import com.finploit.android.data.api.PlanningApi
+import com.finploit.android.data.api.RulesApi
 import com.finploit.android.data.api.RecurringApi
 import com.finploit.android.data.api.ShoppingApi
 import dagger.Module
@@ -145,6 +146,11 @@ object NetworkModule {
     @Singleton
     fun providePlanningApi(retrofit: Retrofit): PlanningApi =
         retrofit.create(PlanningApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideRulesApi(retrofit: Retrofit): RulesApi =
+        retrofit.create(RulesApi::class.java)
 
     @Provides
     @Singleton

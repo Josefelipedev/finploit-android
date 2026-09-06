@@ -29,6 +29,12 @@ import com.finploit.android.ui.theme.*
 fun BudgetLimitsScreen(
     viewModel: BudgetLimitsViewModel,
     onBack: () -> Unit,
+    /**
+     * `true` quando isto é uma aba do `BudgetHubScreen`, que já desenha a barra
+     * de topo e o botão de voltar. Sem isto, embutir o ecrã dava duas barras
+     * empilhadas e duas setas de voltar que faziam coisas diferentes.
+     */
+    embedded: Boolean = false,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     // O gasto chega convertido para a moeda do utilizador; o ecrã escrevia "€"
@@ -36,20 +42,35 @@ fun BudgetLimitsScreen(
     val currency = currencyConfigByCode(state.displayCurrency ?: LocalCurrencyConfig.current.code)
 
     Column(modifier = Modifier.fillMaxSize().background(BackgroundDark)) {
-        TopAppBar(
-            title = { Text("Limites de Orçamento", fontWeight = FontWeight.Bold, color = TextPrimary) },
-            navigationIcon = {
-                IconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar", tint = TextSecondary)
+        if (!embedded) {
+            TopAppBar(
+                title = { Text("Limites de Orçamento", fontWeight = FontWeight.Bold, color = TextPrimary) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar", tint = TextSecondary)
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { viewModel.showAddDialog() }) {
+                        Icon(Icons.Default.Add, contentDescription = "Adicionar", tint = GreenPrimary)
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = BackgroundDark),
+            )
+        } else {
+            // Embutido, o "+" da barra desapareceu com ela — e sem ele não há
+            // como criar o primeiro limite.
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.End,
+            ) {
+                TextButton(onClick = { viewModel.showAddDialog() }) {
+                    Icon(Icons.Default.Add, contentDescription = null, tint = GreenPrimary, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Novo limite", color = GreenPrimary, fontSize = 13.sp)
                 }
-            },
-            actions = {
-                IconButton(onClick = { viewModel.showAddDialog() }) {
-                    Icon(Icons.Default.Add, contentDescription = "Adicionar", tint = GreenPrimary)
-                }
-            },
-            colors = TopAppBarDefaults.topAppBarColors(containerColor = BackgroundDark),
-        )
+            }
+        }
 
         if (state.limits.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

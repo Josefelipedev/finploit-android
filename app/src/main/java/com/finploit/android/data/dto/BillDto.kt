@@ -19,6 +19,20 @@ data class BillsResponse(
      * pelo passado.
      */
     val accounts: BillsForecastDto? = null,
+    /**
+     * A despesa do mês repartida pelos baldes da regra — pago e por pagar.
+     * O que não tem balde fica em `unclassified`, à parte e não dentro de um
+     * deles: é o que impede o total de parecer completo quando não está.
+     */
+    val byBucket: BillsByBucketDto? = null,
+)
+
+/** O mês visto pelos baldes: o que dá para cortar, e o que não dá. */
+data class BillsByBucketDto(
+    val needs: Double = 0.0,
+    val wants: Double = 0.0,
+    val savings: Double = 0.0,
+    val unclassified: Double = 0.0,
 )
 
 /** A previsão por conta bancária + o que ainda não tem conta atribuída. */
@@ -37,6 +51,10 @@ data class MonthlyBillsForecastDto(
     val displayCurrency: String = "BRL",
     val rateDate: String? = null,
     val unconvertedCurrencies: List<String> = emptyList(),
+    /** "couple" | "mine" — de quem é a fila que o servidor somou. */
+    val scope: String = "couple",
+    /** Falso num workspace de uma pessoa só: não há duas vistas a escolher. */
+    val isCouple: Boolean = false,
 )
 
 data class BillMonthForecastDto(
@@ -101,6 +119,10 @@ data class BillItemDto(
     val categoryId: Int? = null,
     val categoryName: String? = null,
     val categoryColor: String? = null,
+    /** O balde da regra a que esta conta pertence. Nulo = ninguém sabe. */
+    val bucket: String? = null,
+    /** "manual" | "guess" | "unknown" — um palpite não é uma decisão. */
+    val bucketSource: String = "unknown",
     /** Conta bancária de onde sai (ou onde entra). Nulo = não foi dito. */
     val accountId: Int? = null,
     val dueDate: String = "",

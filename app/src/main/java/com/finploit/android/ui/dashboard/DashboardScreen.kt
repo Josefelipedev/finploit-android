@@ -61,6 +61,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.finploit.android.data.dto.MonthForecastDto
 import com.finploit.android.data.dto.TransactionDto
 import com.finploit.android.ui.components.PeriodChips
+import com.finploit.android.ui.rules.RulesCard
 import com.finploit.android.ui.theme.currencyConfigByCode
 import com.finploit.android.ui.theme.BackgroundDark
 import com.finploit.android.ui.theme.CardBackground
@@ -86,11 +87,12 @@ fun DashboardScreen(
     onNotificationsClick: () -> Unit = {},
     onAddRecurringClick: () -> Unit = {},
     onBudgetClick: () -> Unit = {},
+    /** Abre o Orçamento já na aba da Regra — é o que o cartão promete. */
+    onRulesClick: () -> Unit = {},
     onReportClick: () -> Unit = {},
     onCalendarClick: () -> Unit = {},
     onSearchClick: () -> Unit = {},
     onScanReceiptClick: () -> Unit = {},
-    onPlanningClick: () -> Unit = {},
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var showOverflowMenu by remember { mutableStateOf(false) }
@@ -146,15 +148,16 @@ fun DashboardScreen(
                             label = "Relatório mensal",
                             onClick = { showOverflowMenu = false; onReportClick() },
                         )
+                        // "Orçamento" e já não "Limites de orçamento": o ecrã
+                        // passou a ter três andares — os limites do mês, o
+                        // plano do ano e a regra. O "Planeamento" que estava
+                        // aqui foi dissolvido: era um beco a que só se chegava
+                        // por este menu, e as abas dele foram para onde já
+                        // havia casa (Metas, Orçamento, Análise).
                         DashboardMenuItem(
                             icon = Icons.Default.Wallet,
-                            label = "Limites de orçamento",
+                            label = "Orçamento e regras",
                             onClick = { showOverflowMenu = false; onBudgetClick() },
-                        )
-                        DashboardMenuItem(
-                            icon = Icons.Default.TrendingUp,
-                            label = "Planeamento",
-                            onClick = { showOverflowMenu = false; onPlanningClick() },
                         )
                         DashboardMenuItem(
                             icon = Icons.Default.CameraAlt,
@@ -221,6 +224,12 @@ fun DashboardScreen(
                     uiState.forecast?.let { forecast ->
                         item { MonthForecastCard(forecast) }
                     }
+
+                    // A regra não obedece ao período escolhido em cima, e é de
+                    // propósito: compara-se sempre com os últimos meses
+                    // FECHADOS. Um período de duas semanas daria uma divisão
+                    // que não quer dizer nada.
+                    item(key = "rules-card") { RulesCard(onOpenRules = onRulesClick) }
 
                     if (data.stats.revenueLastWeek > 0 || data.stats.expenseLastWeek > 0) {
                         item {

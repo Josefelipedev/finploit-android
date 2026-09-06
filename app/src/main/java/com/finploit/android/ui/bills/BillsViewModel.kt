@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.finploit.android.data.dto.BankAccountDto
 import com.finploit.android.data.dto.BillItemDto
+import com.finploit.android.data.dto.BillsByBucketDto
 import com.finploit.android.data.dto.BillsForecastDto
 import com.finploit.android.data.dto.CreateBillRequest
 import com.finploit.android.data.dto.FinanceCategoryDto
@@ -80,6 +81,15 @@ data class BillsUiState(
     val monthlyForecast: MonthlyBillsForecastDto? = null,
     val isForecastLoading: Boolean = true,
     val forecastError: Boolean = false,
+    /**
+     * De quem é a fila dos próximos meses: "couple" ou "mine". Vive no
+     * servidor (e não como filtro local, ao contrário dos outros) porque a
+     * fila já vem somada por mês — filtrar por dono aqui obrigaria a receber
+     * conta a conta.
+     */
+    val forecastScope: String = "couple",
+    /** A despesa do mês repartida pelos baldes da regra. */
+    val byBucket: BillsByBucketDto? = null,
     /**
      * O que fica em cada conta bancária depois de pagar o que falta. Nulo num
      * mês já fechado — a previsão parte do saldo de hoje.
@@ -196,10 +206,17 @@ class BillsViewModel @Inject constructor(
         }
     }
 
+    /** Troca entre a fila do casal e a de quem está a olhar. */
+    fun setForecastScope(scope: String) {
+        if (scope == _uiState.value.forecastScope) return
+        _uiState.value = _uiState.value.copy(forecastScope = scope)
+        loadMonthlyForecast()
+    }
+
     fun loadMonthlyForecast() {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isForecastLoading = true, forecastError = false)
-            repository.getForecast(10)
+            repository.getForecast(10, _uiState.value.forecastScope)
                 .onSuccess { forecast ->
                     _uiState.value = _uiState.value.copy(
                         monthlyForecast = forecast,
@@ -261,6 +278,7 @@ class BillsViewModel @Inject constructor(
                 realizedBalance = data?.realizedBalance ?: 0.0,
                 unconvertedCurrencies = data?.unconvertedCurrencies.orEmpty(),
                 accountsForecast = data?.accounts,
+                byBucket = data?.byBucket,
                 error = if (result.isFailure) "Não foi possível carregar as contas." else null,
             )
         }

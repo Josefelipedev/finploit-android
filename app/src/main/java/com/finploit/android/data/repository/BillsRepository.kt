@@ -17,8 +17,10 @@ class BillsRepository @Inject constructor(
     suspend fun getBills(month: String?): Result<BillsResponse> =
         runCatching { api.getBills(month) }
 
-    suspend fun getForecast(months: Int = 10): Result<MonthlyBillsForecastDto> =
-        runCatching { api.getForecast(months) }
+    suspend fun getForecast(
+        months: Int = 10,
+        scope: String = "couple",
+    ): Result<MonthlyBillsForecastDto> = runCatching { api.getForecast(months, scope) }
 
     suspend fun createBill(request: CreateBillRequest): Result<BillItemDto> =
         runCatching { api.create(request) }

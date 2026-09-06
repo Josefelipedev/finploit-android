@@ -18,8 +18,19 @@ interface BillsApi {
     @GET("bills")
     suspend fun getBills(@Query("month") month: String?): BillsResponse
 
+    /**
+     * A fila dos próximos meses.
+     *
+     * `scope=mine` estreita-a ao que tem o nome de quem pergunta: "quando é
+     * que isto alivia PARA MIM" é outra pergunta que "quanto sai desta casa",
+     * e num casal o mês mais pesado do casal pode ser um em que a pessoa não
+     * paga nada. Sem o parâmetro, o servidor devolve a fila do casal.
+     */
     @GET("bills/forecast")
-    suspend fun getForecast(@Query("months") months: Int = 10): MonthlyBillsForecastDto
+    suspend fun getForecast(
+        @Query("months") months: Int = 10,
+        @Query("scope") scope: String = "couple",
+    ): MonthlyBillsForecastDto
 
     @POST("bills")
     suspend fun create(@Body body: CreateBillRequest): BillItemDto

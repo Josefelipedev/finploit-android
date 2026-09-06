@@ -38,45 +38,60 @@ import kotlin.math.abs
  * anual). O servidor é que faz as contas todas; aqui só se desenha e se
  * recarrega o que voltou.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * A moeda de um ecrã de planeamento.
+ *
+ * Vem da resposta e não do ambiente: em casal, quem lê pode não ser quem
+ * registou, e o servidor já converteu tudo para uma moeda só.
+ */
 @Composable
-fun PlanningScreen(
-    viewModel: PlanningViewModel,
-    onBack: () -> Unit,
-) {
-    val state by viewModel.uiState.collectAsStateWithLifecycle()
-    var tabIndex by remember { mutableStateOf(0) }
-
-    // A moeda vem da resposta, não do ambiente: em casal, quem lê pode não ser
-    // quem regista, e o servidor já converteu tudo para uma só.
-    val currency = currencyConfigByCode(
+private fun planningCurrency(state: PlanningUiState): CurrencyConfig =
+    currencyConfigByCode(
         state.overview?.projection?.displayCurrency
             ?: state.yearPlan?.displayCurrency
             ?: LocalCurrencyConfig.current.code,
     )
 
-    // O plano do ano é o único separador que não vem na visão geral.
-    LaunchedEffect(tabIndex) {
-        if (tabIndex == 3 && state.yearPlan == null) viewModel.loadYear(state.year)
-    }
-
+@Composable
+private fun PlanningFrame(
+    state: PlanningUiState,
+    onDismissMessage: () -> Unit,
+    content: @Composable () -> Unit,
+) {
     Column(modifier = Modifier.fillMaxSize().background(BackgroundDark)) {
-        TopAppBar(
-            title = { Text("Planeamento", fontWeight = FontWeight.Bold, color = TextPrimary) },
-            navigationIcon = {
-                IconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar", tint = TextSecondary)
-                }
-            },
-            actions = {
-                IconButton(onClick = { viewModel.refresh() }) {
-                    Icon(Icons.Default.Refresh, contentDescription = "Actualizar", tint = GreenPrimary)
-                }
-            },
-            colors = TopAppBarDefaults.topAppBarColors(containerColor = BackgroundDark),
-        )
+        state.error?.let { Banner(it, ExpenseRed, onDismissMessage) }
+        state.message?.let { Banner(it, GreenPrimary, onDismissMessage) }
 
-        val tabs = listOf("Projeção", "Cenários", "Metas", "Plano anual")
+        if (state.isLoading && state.overview == null) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = GreenPrimary)
+            }
+        } else {
+            content()
+        }
+    }
+}
+
+/**
+ * Onde é que este rumo vai dar — e o que muda se algo mudar.
+ *
+ * Era um ecrã só seu, ao qual só se chegava por um botão do Dashboard, e
+ * ninguém lá ia. Agora vive dentro da Análise, que é onde já se pergunta "o que
+ * é que os meus números dizem" — a diferença é só que estas duas abas o
+ * perguntam sobre o futuro em vez do passado.
+ *
+ * As outras duas abas que ali viviam foram para onde já havia casa: o ritmo
+ * das metas para as Metas, o plano anual e a regra para o Orçamento.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ProjectionPanel(viewModel: PlanningViewModel) {
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val currency = planningCurrency(state)
+    var tabIndex by remember { mutableStateOf(0) }
+
+    Column(Modifier.fillMaxSize().background(BackgroundDark)) {
+        val tabs = listOf("Projeção", "Cenários")
         TabRow(
             selectedTabIndex = tabIndex,
             containerColor = BackgroundDark,
@@ -98,26 +113,51 @@ fun PlanningScreen(
             }
         }
 
-        state.error?.let { Banner(it, ExpenseRed) { viewModel.clearMessage() } }
-        state.message?.let { Banner(it, GreenPrimary) { viewModel.clearMessage() } }
-
-        if (state.isLoading && state.overview == null) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = GreenPrimary)
-            }
-        } else {
-            when (tabIndex) {
-                0 -> ProjectionTab(state, currency)
-                1 -> ScenariosTab(state, currency, viewModel)
-                2 -> GoalsPaceTab(state, currency, viewModel)
-                else -> YearPlanTab(state, currency, viewModel)
-            }
+        PlanningFrame(state, { viewModel.clearMessage() }) {
+            if (tabIndex == 0) ProjectionTab(state, currency)
+            else ScenariosTab(state, currency, viewModel)
         }
     }
 }
 
+/**
+ * As metas vistas de longe: cabem no que sobra?
+ *
+ * A lista das Metas diz quanto já se juntou. Isto diz se o ritmo chega para o
+ * prazo e se a soma de todas cabe no excedente do mês — dava para ver uma meta
+ * "80% feita" sem nunca saber que o dinheiro para a acabar não existe.
+ */
 @Composable
-private fun Banner(text: String, color: androidx.compose.ui.graphics.Color, onDismiss: () -> Unit) {
+fun GoalsPacePanel(viewModel: PlanningViewModel) {
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    PlanningFrame(state, { viewModel.clearMessage() }) {
+        GoalsPaceTab(state, planningCurrency(state), viewModel)
+    }
+}
+
+/**
+ * Quanto se decide gastar em cada categoria, por ano.
+ *
+ * É o mesmo gesto dos limites mensais que vivem ao lado, com outro horizonte:
+ * 400 por mês e 4.800 no ano são a mesma decisão dita de duas maneiras, e em
+ * ecrãs separados escondiam-se quando se contradiziam.
+ */
+@Composable
+fun YearPlanPanel(viewModel: PlanningViewModel) {
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+
+    // O plano do ano é o único que não vem na visão geral.
+    LaunchedEffect(state.year) {
+        if (state.yearPlan == null) viewModel.loadYear(state.year)
+    }
+
+    PlanningFrame(state, { viewModel.clearMessage() }) {
+        YearPlanTab(state, planningCurrency(state), viewModel)
+    }
+}
+
+@Composable
+internal fun Banner(text: String, color: androidx.compose.ui.graphics.Color, onDismiss: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -136,7 +176,7 @@ private fun Banner(text: String, color: androidx.compose.ui.graphics.Color, onDi
 // ── Projeção ────────────────────────────────────────────────────────────────
 
 @Composable
-private fun ProjectionTab(state: PlanningUiState, currency: CurrencyConfig) {
+internal fun ProjectionTab(state: PlanningUiState, currency: CurrencyConfig) {
     val projection = state.overview?.projection ?: return
     val summary = projection.summary
 
@@ -336,7 +376,7 @@ private fun SectionTitle(text: String) {
 // ── Cenários ────────────────────────────────────────────────────────────────
 
 @Composable
-private fun ScenariosTab(
+internal fun ScenariosTab(
     state: PlanningUiState,
     currency: CurrencyConfig,
     viewModel: PlanningViewModel,
@@ -617,7 +657,7 @@ private fun EventDialog(
 // ── Metas ───────────────────────────────────────────────────────────────────
 
 @Composable
-private fun GoalsPaceTab(
+internal fun GoalsPaceTab(
     state: PlanningUiState,
     currency: CurrencyConfig,
     viewModel: PlanningViewModel,
@@ -750,7 +790,7 @@ private fun GoalPaceDialog(
 // ── Plano anual ─────────────────────────────────────────────────────────────
 
 @Composable
-private fun YearPlanTab(
+internal fun YearPlanTab(
     state: PlanningUiState,
     currency: CurrencyConfig,
     viewModel: PlanningViewModel,

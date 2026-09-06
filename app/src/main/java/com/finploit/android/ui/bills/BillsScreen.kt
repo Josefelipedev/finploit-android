@@ -76,11 +76,14 @@ import com.finploit.android.data.dto.BankAccountDto
 import com.finploit.android.data.dto.BillItemDto
 import com.finploit.android.data.dto.BillsForecastDto
 import com.finploit.android.data.dto.FinanceCategoryDto
+import com.finploit.android.data.dto.BillsByBucketDto
 import com.finploit.android.data.dto.MonthlyBillsForecastDto
 import com.finploit.android.ui.components.OwnerChip
+import com.finploit.android.ui.rules.Buckets
 import com.finploit.android.ui.theme.BackgroundDark
 import com.finploit.android.ui.theme.CURRENCY_OPTIONS
 import com.finploit.android.ui.theme.CardBackground
+import com.finploit.android.ui.theme.CurrencyConfig
 import com.finploit.android.ui.theme.ExpenseRed
 import com.finploit.android.ui.theme.GreenPrimary
 import com.finploit.android.ui.theme.IncomeGreen
@@ -224,12 +227,25 @@ fun BillsScreen(
                             modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
                         )
                     }
+                    uiState.byBucket?.let { baldes ->
+                        item(key = "bucket-split") {
+                            BucketSplitSection(
+                                byBucket = baldes,
+                                // A moeda de exibição do ecrã — o servidor já
+                                // converteu os baldes para ela.
+                                currency = LocalCurrencyConfig.current,
+                                safe = uiState.unconvertedCurrencies.isEmpty(),
+                            )
+                        }
+                    }
                     item(key = "monthly-forecast") {
                         MonthlyForecastSection(
                             forecast = uiState.monthlyForecast,
                             loading = uiState.isForecastLoading,
                             failed = uiState.forecastError,
                             onRetry = viewModel::loadMonthlyForecast,
+                            scope = uiState.forecastScope,
+                            onScopeChange = viewModel::setForecastScope,
                         )
                     }
                     if (uiState.bankAccounts.any { it.creditLimit != null }) {
@@ -310,6 +326,8 @@ fun BillsScreen(
                             loading = uiState.isForecastLoading,
                             failed = uiState.forecastError,
                             onRetry = viewModel::loadMonthlyForecast,
+                            scope = uiState.forecastScope,
+                            onScopeChange = viewModel::setForecastScope,
                         )
                     }
                     if (uiState.bankAccounts.any { it.creditLimit != null }) {
@@ -1043,9 +1061,43 @@ private fun MonthlyForecastSection(
     loading: Boolean,
     failed: Boolean,
     onRetry: () -> Unit,
+    scope: String,
+    onScopeChange: (String) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("PRÓXIMOS MESES", color = TextSecondary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "PRÓXIMOS MESES",
+                color = TextSecondary,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.weight(1f),
+            )
+            // Só num workspace partilhado é que há duas vistas a escolher: o
+            // total do casal responde a "quanto sai desta casa" e não a
+            // "quanto sai de mim", e o mês mais pesado do casal pode ser um em
+            // que quem está a olhar não paga nada.
+            if (forecast?.isCouple == true) {
+                listOf("couple" to "Do casal", "mine" to "Só o meu").forEach { (chave, rotulo) ->
+                    val activo = scope == chave
+                    Box(
+                        Modifier
+                            .padding(start = 6.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (activo) GreenPrimary.copy(alpha = 0.18f) else SurfaceDark)
+                            .clickable { onScopeChange(chave) }
+                            .padding(horizontal = 10.dp, vertical = 5.dp),
+                    ) {
+                        Text(
+                            rotulo,
+                            color = if (activo) GreenPrimary else TextSecondary,
+                            fontSize = 11.sp,
+                            fontWeight = if (activo) FontWeight.SemiBold else FontWeight.Normal,
+                        )
+                    }
+                }
+            }
+        }
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp),
@@ -1353,6 +1405,25 @@ private fun BillCard(
                         Text(name, color = TextSecondary, fontSize = 12.sp)
                         Spacer(Modifier.width(8.dp))
                     }
+                    // O balde da regra: é o que distingue a renda do streaming
+                    // numa lista ordenada por data. Só nas despesas — repartir
+                    // o que se recebe em necessidade e desejo não quer dizer
+                    // nada. O "?" marca um palpite que ninguém confirmou.
+                    if (item.type == "expense" && item.bucket != null) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(999.dp))
+                                .background(Buckets.color(item.bucket).copy(alpha = 0.15f))
+                                .padding(horizontal = 6.dp, vertical = 2.dp),
+                        ) {
+                            Text(
+                                Buckets.short(item.bucket) + if (item.bucketSource == "guess") "?" else "",
+                                color = Buckets.color(item.bucket),
+                                fontSize = 10.sp,
+                            )
+                        }
+                        Spacer(Modifier.width(8.dp))
+                    }
                     Text("Vence ${formatDueDate(item.dueDate)}", color = TextSecondary, fontSize = 12.sp)
                 }
                 installmentLabel(item)?.let { label ->
@@ -1478,4 +1549,111 @@ private fun formatDueDate(iso: String): String = try {
     "%02d/%02d/%d".format(d.dayOfMonth, d.monthValue, d.year)
 } catch (e: Exception) {
     iso.take(10)
+}
+
+/**
+ * O mês repartido pelos baldes da regra.
+ *
+ * A lista responde a "o que tenho de pagar". Não responde à pergunta que se faz
+ * a seguir, quando o mês aperta: **o que é que eu POSSO cortar?**. Uma renda e
+ * um streaming são a mesma linha numa lista ordenada por data, e são coisas
+ * completamente diferentes de olhar.
+ *
+ * O que não tem balde aparece à parte, em cinzento. Metê-lo dentro de um dos
+ * três fazia o corte parecer maior do que é.
+ */
+@Composable
+private fun BucketSplitSection(
+    byBucket: BillsByBucketDto,
+    currency: CurrencyConfig,
+    safe: Boolean,
+) {
+    val total = byBucket.needs + byBucket.wants + byBucket.savings + byBucket.unclassified
+    if (total <= 0.005) return
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("O QUE DÁ PARA CORTAR", color = TextSecondary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = CardBackground),
+        ) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (!safe) {
+                    Text(
+                        "Faltam taxas de câmbio, por isso a divisão fica escondida — somar " +
+                            "moedas sem converter dá um número plausível e errado.",
+                        color = WarningAmber,
+                        fontSize = 11.sp,
+                    )
+                } else {
+                    // Uma barra só, repartida: é a proporção que interessa ver,
+                    // e três barras separadas obrigavam a compará-las de cabeça.
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .height(10.dp)
+                            .clip(RoundedCornerShape(5.dp))
+                            .background(SurfaceDark),
+                    ) {
+                        listOf(
+                            "needs" to byBucket.needs,
+                            "wants" to byBucket.wants,
+                            "savings" to byBucket.savings,
+                            null to byBucket.unclassified,
+                        ).forEach { (balde, valor) ->
+                            if (valor > 0.005) {
+                                Box(
+                                    Modifier
+                                        .weight(valor.toFloat())
+                                        .fillMaxSize()
+                                        .background(Buckets.color(balde)),
+                                )
+                            }
+                        }
+                    }
+
+                    listOf(
+                        "needs" to byBucket.needs,
+                        "wants" to byBucket.wants,
+                        "savings" to byBucket.savings,
+                        null to byBucket.unclassified,
+                    ).forEach { (balde, valor) ->
+                        if (valor > 0.005) {
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    Modifier
+                                        .size(8.dp)
+                                        .clip(CircleShape)
+                                        .background(Buckets.color(balde)),
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    Buckets.label(balde),
+                                    color = TextSecondary,
+                                    fontSize = 12.sp,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                Text(
+                                    "${currency.format(valor)}  ${((valor / total) * 100).toInt()}%",
+                                    color = if (balde == null) TextSecondary else TextPrimary,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                )
+                            }
+                        }
+                    }
+
+                    if (byBucket.wants > 0.005) {
+                        Text(
+                            "${currency.format(byBucket.wants)} deste mês são coisas que " +
+                                "escolheste — é por aí que se corta primeiro, se for preciso.",
+                            color = TextSecondary,
+                            fontSize = 12.sp,
+                        )
+                    }
+                }
+            }
+        }
+    }
 }

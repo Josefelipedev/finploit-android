@@ -45,13 +45,15 @@ import androidx.activity.result.contract.ActivityResultContracts
 import com.finploit.android.data.api.EnrichItem
 import com.finploit.android.data.dto.FinanceItemDto
 import com.finploit.android.data.dto.ShoppingListDto
-import com.finploit.android.ui.budget.BudgetLimitsScreen
+import com.finploit.android.ui.budget.BudgetHubScreen
+import com.finploit.android.ui.components.ScreenTabs
+import com.finploit.android.ui.planning.GoalsPacePanel
+import com.finploit.android.ui.planning.ProjectionPanel
 import com.finploit.android.ui.calendar.CalendarScreen
 import com.finploit.android.ui.grocery.GrocerySearchScreen
 import com.finploit.android.ui.grocery.GrocerySearchViewModel
 import com.finploit.android.ui.pantry.PantryScreen
 import com.finploit.android.ui.pantry.PantryViewModel
-import com.finploit.android.ui.planning.PlanningScreen
 import com.finploit.android.ui.analysis.AnalysisScreen
 import com.finploit.android.ui.mealplanner.MealPlannerScreen
 import com.finploit.android.ui.analysis.NotificationsScreen
@@ -111,11 +113,12 @@ fun MainScreen(onLogout: () -> Unit) {
     var showGrocerySearch by remember { mutableStateOf(false) }
     var showPantry by remember { mutableStateOf(false) }
     var showBudgetLimits by remember { mutableStateOf(false) }
+    /** Em que aba do Orçamento abrir — o cartão das regras aponta para a 3ª. */
+    var budgetInitialTab by remember { mutableStateOf(0) }
     var showMonthlyReport by remember { mutableStateOf(false) }
     var showCalendar by remember { mutableStateOf(false) }
     var showGlobalSearch by remember { mutableStateOf(false) }
     var showReceiptScan by remember { mutableStateOf(false) }
-    var showPlanning by remember { mutableStateOf(false) }
     var groceryInitialItems by remember { mutableStateOf<List<EnrichItem>>(emptyList()) }
     var groceryListTabLabel by remember { mutableStateOf("Lista de Itens") }
     var selectedShoppingList by remember { mutableStateOf<ShoppingListDto?>(null) }
@@ -133,7 +136,7 @@ fun MainScreen(onLogout: () -> Unit) {
     // BackHandler: botão voltar do sistema fecha overlays em vez de sair do app
     val isShowingOverlay = showProfile || showNotifications || showPantry || showBudgetLimits ||
         showMonthlyReport || showCalendar || showGlobalSearch || showReceiptScan ||
-        showPlanning || showGrocerySearch || showAddTransaction || editingTransaction != null ||
+        showGrocerySearch || showAddTransaction || editingTransaction != null ||
         showAddGoal || showAddShoppingList || showAddRecurring || selectedShoppingList != null
 
     BackHandler(enabled = isShowingOverlay) {
@@ -146,7 +149,6 @@ fun MainScreen(onLogout: () -> Unit) {
             showCalendar -> showCalendar = false
             showGlobalSearch -> showGlobalSearch = false
             showReceiptScan -> showReceiptScan = false
-            showPlanning -> showPlanning = false
             showGrocerySearch -> showGrocerySearch = false
             showAddTransaction -> showAddTransaction = false
             editingTransaction != null -> editingTransaction = null
@@ -178,7 +180,10 @@ fun MainScreen(onLogout: () -> Unit) {
             showPantry ->
                 PantryScreen(viewModel = hiltViewModel(), onBack = { showPantry = false })
             showBudgetLimits ->
-                BudgetLimitsScreen(viewModel = hiltViewModel(), onBack = { showBudgetLimits = false })
+                BudgetHubScreen(
+                    onBack = { showBudgetLimits = false },
+                    initialTab = budgetInitialTab,
+                )
             showMonthlyReport ->
                 MonthlyReportScreen(viewModel = hiltViewModel(), onBack = { showMonthlyReport = false })
             showCalendar ->
@@ -187,8 +192,6 @@ fun MainScreen(onLogout: () -> Unit) {
                 GlobalSearchScreen(viewModel = hiltViewModel(), onBack = { showGlobalSearch = false })
             showReceiptScan ->
                 ReceiptScanScreen(viewModel = hiltViewModel(), onBack = { showReceiptScan = false })
-            showPlanning ->
-                PlanningScreen(viewModel = hiltViewModel(), onBack = { showPlanning = false })
             showGrocerySearch ->
                 GrocerySearchScreen(
                     viewModel = groceryViewModel,
@@ -298,12 +301,12 @@ fun MainScreen(onLogout: () -> Unit) {
                                 onProfileClick = { showProfile = true },
                                 onNotificationsClick = { showNotifications = true },
                                 onAddRecurringClick = { showAddRecurring = true },
-                                onBudgetClick = { showBudgetLimits = true },
+                                onBudgetClick = { budgetInitialTab = 0; showBudgetLimits = true },
+                                onRulesClick = { budgetInitialTab = 2; showBudgetLimits = true },
                                 onReportClick = { showMonthlyReport = true },
                                 onCalendarClick = { showCalendar = true },
                                 onSearchClick = { showGlobalSearch = true },
                                 onScanReceiptClick = { showReceiptScan = true },
-                                onPlanningClick = { showPlanning = true },
                             )
                         }
                         composable(BottomNav.Transactions.route) {
@@ -313,7 +316,15 @@ fun MainScreen(onLogout: () -> Unit) {
                             )
                         }
                         composable(BottomNav.Goals.route) {
-                            GoalsScreen(viewModel = hiltViewModel())
+                            // A lista diz quanto já se juntou; o segundo
+                            // separador diz se o ritmo chega e se a soma de
+                            // todas cabe no que sobra. Dava para ver uma meta
+                            // "80% feita" sem saber que o dinheiro para a
+                            // acabar não existe.
+                            ScreenTabs(listOf("As minhas metas", "Cabem no que sobra?")) { tab ->
+                                if (tab == 0) GoalsScreen(viewModel = hiltViewModel())
+                                else GoalsPacePanel(viewModel = hiltViewModel())
+                            }
                         }
                         composable(BottomNav.Shopping.route) {
                             ShoppingScreen(
@@ -334,7 +345,14 @@ fun MainScreen(onLogout: () -> Unit) {
                             )
                         }
                         composable(BottomNav.Analysis.route) {
-                            AnalysisScreen(viewModel = hiltViewModel())
+                            // As tendências olham para o que já aconteceu; a
+                            // projeção olha para onde este rumo vai dar. É a
+                            // mesma pergunta com o sinal trocado, e a projeção
+                            // vivia num ecrã a que só se chegava por um menu.
+                            ScreenTabs(listOf("O que já foi", "Para onde vai")) { tab ->
+                                if (tab == 0) AnalysisScreen(viewModel = hiltViewModel())
+                                else ProjectionPanel(viewModel = hiltViewModel())
+                            }
                         }
                     }
                 }
