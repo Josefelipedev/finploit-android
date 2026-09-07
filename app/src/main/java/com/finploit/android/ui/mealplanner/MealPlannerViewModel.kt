@@ -15,6 +15,8 @@ import com.finploit.android.data.dto.ScheduleItemDto
 import com.finploit.android.data.dto.ShoppingItemImportDto
 import com.finploit.android.data.dto.UserProfileRequest
 import com.finploit.android.data.preferences.UserPreferencesRepository
+import com.finploit.android.data.dto.BankAccountDto
+import com.finploit.android.data.repository.BankAccountRepository
 import com.finploit.android.data.repository.FinanceRepository
 import com.finploit.android.data.repository.GrocerySearchRepository
 import com.finploit.android.data.repository.MealPlannerRepository
@@ -78,6 +80,10 @@ data class MealPlannerUiState(
     val isResettingShopping: Boolean = false,
     /** A fechar (ou reabrir) a lista de compras do cardápio (C4). */
     val isClosingShopping: Boolean = false,
+    /** Contas por arquivar, para se poder dizer de onde saiu o dinheiro. */
+    val bankAccounts: List<BankAccountDto> = emptyList(),
+    /** A conta escolhida para o fecho. Null = despesa só no razão. */
+    val closeAccountId: Int? = null,
     val shoppingFilter: ShoppingFilter = ShoppingFilter.PENDING,
     val collapsedCategories: Set<String> = emptySet(),
     val pantryItemCount: Int = 0,
@@ -146,6 +152,7 @@ class MealPlannerViewModel @Inject constructor(
     private val preferencesRepository: UserPreferencesRepository,
     private val pantryRepository: PantryRepository,
     private val financeRepository: FinanceRepository,
+    private val bankAccountRepository: BankAccountRepository,
 ) : ViewModel() {
 
     val currencyCode: StateFlow<String> = preferencesRepository.currencyCode
@@ -238,6 +245,7 @@ class MealPlannerViewModel @Inject constructor(
     }
 
     fun load() {
+        loadBankAccounts()
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, error = null, isOffline = false)
             val planDeferred = async { repository.getActivePlan() }
@@ -881,12 +889,17 @@ class MealPlannerViewModel @Inject constructor(
      */
     fun closeShoppingList() {
         viewModelScope.launch {
+            val accountId = _uiState.value.closeAccountId
             _uiState.value = _uiState.value.copy(isClosingShopping = true)
-            repository.closeShoppingList()
+            repository.closeShoppingList(accountId)
                 .onSuccess {
                     _uiState.value = _uiState.value.copy(
                         isClosingShopping = false,
-                        snackbarMessage = "Lista fechada e despesa lançada.",
+                        snackbarMessage = if (accountId != null) {
+                            "Lista fechada — despesa lançada e descontada da conta."
+                        } else {
+                            "Lista fechada e despesa lançada."
+                        },
                     )
                     load()
                 }
@@ -915,6 +928,27 @@ class MealPlannerViewModel @Inject constructor(
                     _uiState.value = _uiState.value.copy(
                         isClosingShopping = false,
                         snackbarMessage = e.message ?: "Não foi possível reabrir a lista.",
+                    )
+                }
+        }
+    }
+
+    /** De que conta sai a despesa do fecho. Null volta a "sem conta". */
+    fun setCloseAccount(accountId: Int?) {
+        _uiState.value = _uiState.value.copy(closeAccountId = accountId)
+    }
+
+    /**
+     * As contas por arquivar, para o fecho poder dizer de onde saiu o dinheiro.
+     * Falhar isto não estraga o ecrã: sem contas, o seletor não aparece e o
+     * fecho lança a despesa só no razão, como fazia antes.
+     */
+    private fun loadBankAccounts() {
+        viewModelScope.launch {
+            bankAccountRepository.getAll()
+                .onSuccess { list ->
+                    _uiState.value = _uiState.value.copy(
+                        bankAccounts = list.filterNot { it.isArchived },
                     )
                 }
         }

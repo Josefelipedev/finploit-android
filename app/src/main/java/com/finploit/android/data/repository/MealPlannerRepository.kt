@@ -1,6 +1,7 @@
 package com.finploit.android.data.repository
 
 import com.finploit.android.data.api.BatchToggleRequest
+import com.finploit.android.data.api.CloseShoppingListRequest
 import com.finploit.android.data.api.MealPlannerApi
 import com.finploit.android.data.dto.AddShoppingItemRequest
 import com.finploit.android.data.dto.GeneratePlanRequest
@@ -57,9 +58,12 @@ class MealPlannerRepository @Inject constructor(
 
     suspend fun toggleItem(id: Int): Result<MealShoppingItemDto> = runCatching { api.toggleItem(id) }
 
-    /** Fecha a lista do cardápio e lança a despesa (C4). */
-    suspend fun closeShoppingList(): Result<MealShoppingListDto> =
-        runCatching { api.closeShoppingList() }
+    /**
+     * Fecha a lista do cardápio e lança a despesa (C4). Com `accountId`, a
+     * despesa sai também do saldo dessa conta bancária.
+     */
+    suspend fun closeShoppingList(accountId: Int? = null): Result<MealShoppingListDto> =
+        runCatching { api.closeShoppingList(CloseShoppingListRequest(accountId)) }
 
     /** Reabre a lista e apaga a despesa. */
     suspend fun reopenShoppingList(): Result<MealShoppingListDto> =

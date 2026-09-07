@@ -63,6 +63,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.finploit.android.data.api.EnrichItem
+import com.finploit.android.data.dto.BankAccountDto
 import com.finploit.android.data.dto.EnrichedShoppingItemDto
 import com.finploit.android.data.dto.MealShoppingItemDto
 import com.finploit.android.data.dto.parsedUsedInDays
@@ -101,6 +102,10 @@ internal fun ShoppingTab(
     onCloseShopping: () -> Unit = {},
     onReopenShopping: () -> Unit = {},
     isClosingShopping: Boolean = false,
+    /** Só as contas na moeda do plano: o saldo soma sem converter (C5). */
+    closeAccounts: List<BankAccountDto> = emptyList(),
+    closeAccountId: Int? = null,
+    onCloseAccountChange: (Int?) -> Unit = {},
     onFilterChange: (ShoppingFilter) -> Unit = {},
     collapsedCategories: Set<String> = emptySet(),
     onToggleCategory: (String) -> Unit = {},
@@ -411,6 +416,37 @@ internal fun ShoppingTab(
                                 .padding(horizontal = 8.dp, vertical = 4.dp),
                         )
                     } else if (purchased > 0) {
+                        // De que conta saiu o dinheiro: sem isto a despesa
+                        // entrava no razão e nenhum saldo bancário se mexia.
+                        if (closeAccounts.isNotEmpty()) {
+                            Text(
+                                "De que conta sai:",
+                                color = TextSecondary,
+                                fontSize = 11.sp,
+                                modifier = Modifier.padding(bottom = 4.dp),
+                            )
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                modifier = Modifier
+                                    .horizontalScroll(rememberScrollState())
+                                    .padding(bottom = 8.dp),
+                            ) {
+                                CloseAccountChip(
+                                    label = "Sem conta",
+                                    selected = closeAccountId == null,
+                                    enabled = !isClosingShopping,
+                                    onClick = { onCloseAccountChange(null) },
+                                )
+                                closeAccounts.forEach { account ->
+                                    CloseAccountChip(
+                                        label = account.bankName,
+                                        selected = closeAccountId == account.id,
+                                        enabled = !isClosingShopping,
+                                        onClick = { onCloseAccountChange(account.id) },
+                                    )
+                                }
+                            }
+                        }
                         Text(
                             if (isClosingShopping) {
                                 "A fechar..."
@@ -850,4 +886,30 @@ internal fun ShoppingItemRow(
             }
         }
     }
+}
+
+/**
+ * A conta de onde sai a despesa do fecho (C4/C5). Fica no formato dos outros
+ * filtros da lista para não parecer um formulário no meio dos itens.
+ */
+@Composable
+private fun CloseAccountChip(
+    label: String,
+    selected: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    Text(
+        label,
+        color = if (selected) GreenPrimary else TextSecondary,
+        fontSize = 11.sp,
+        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+        modifier = Modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(
+                if (selected) GreenPrimary.copy(alpha = 0.15f) else TextDisabled.copy(alpha = 0.08f)
+            )
+            .clickable(enabled = enabled) { onClick() }
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+    )
 }

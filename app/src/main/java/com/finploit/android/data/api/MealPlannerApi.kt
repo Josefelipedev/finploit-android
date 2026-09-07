@@ -25,6 +25,13 @@ import retrofit2.http.Path
 
 data class BatchToggleRequest(val itemIds: List<Int>)
 
+/**
+ * O fecho da lista (C4). `accountId` diz de que conta bancária saiu o
+ * dinheiro — sem ele a despesa entrava no razão e nenhum saldo se mexia.
+ * A null o Gson omite-o, e o corpo fica `{}` como sempre foi.
+ */
+data class CloseShoppingListRequest(val accountId: Int? = null)
+
 interface MealPlannerApi {
     @GET("meal-planner/schedule")
     suspend fun getSchedule(): List<ScheduleItemDto>
@@ -52,7 +59,9 @@ interface MealPlannerApi {
 
     /** Fecha a lista e lança a despesa do que se comprou (C4). */
     @POST("meal-planner/shopping/close")
-    suspend fun closeShoppingList(@Body request: Map<String, String> = emptyMap()): MealShoppingListDto
+    suspend fun closeShoppingList(
+        @Body request: CloseShoppingListRequest = CloseShoppingListRequest(),
+    ): MealShoppingListDto
 
     /** Reabre a lista e apaga a despesa que ela gerou. */
     @POST("meal-planner/shopping/reopen")
