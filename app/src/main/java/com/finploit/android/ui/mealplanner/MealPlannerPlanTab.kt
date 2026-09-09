@@ -103,6 +103,8 @@ internal fun PlanTab(
      */
     weeklyFoodBudget: Double? = null,
     onOpenPreferences: () -> Unit = {},
+    /** Escrever o cardápio à mão, sem gastar uma geração de IA. */
+    onWriteManually: () -> Unit = {},
 ) {
     val scheduleByDay = schedule.associateBy { it.dayOfWeek }
     val currencyConfig = LocalCurrencyConfig.current
@@ -318,6 +320,22 @@ internal fun PlanTab(
                         }
                     }
                 }
+                // Nem toda a semana precisa de IA: às vezes já se sabe o que se
+                // vai comer, e gastar uma geração (e a espera) para escrever
+                // aquilo é absurdo. O plano manual passa pelo mesmo caminho —
+                // tem lista, fecha em despesa e conta para o orçamento.
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "✍️ Escrever à mão, sem IA",
+                    color = GreenPrimary,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(enabled = !isGenerating) { onWriteManually() }
+                        .padding(vertical = 8.dp),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                )
             }
         }
         if (plan == null && !isGenerating) {

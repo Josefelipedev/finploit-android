@@ -6,6 +6,7 @@ import com.finploit.android.data.api.MealPlannerApi
 import com.finploit.android.data.dto.AddShoppingItemRequest
 import com.finploit.android.data.dto.GeneratePlanRequest
 import com.finploit.android.data.dto.MealPlanDayDto
+import com.finploit.android.data.dto.ManualMealPlanRequest
 import com.finploit.android.data.dto.MealPlanDto
 import com.finploit.android.data.dto.MealPreferencesDto
 import com.finploit.android.data.dto.MealShoppingItemDto
@@ -53,6 +54,15 @@ class MealPlannerRepository @Inject constructor(
     }.recoverCatching { e ->
         if (e is retrofit2.HttpException && e.code() == 404)
             throw Exception("Funcionalidade não disponível no servidor. Atualize o backend.")
+        else throw e
+    }
+
+    /** Um cardápio escrito à mão — mesmo modelo e mesma lista, sem gastar IA. */
+    suspend fun createManualPlan(request: ManualMealPlanRequest): Result<MealPlanDto> = runCatching {
+        api.createManualPlan(request)
+    }.recoverCatching { e ->
+        if (e is retrofit2.HttpException && e.code() == 404)
+            throw Exception("Plano manual ainda não disponível no servidor. Atualize o backend.")
         else throw e
     }
 

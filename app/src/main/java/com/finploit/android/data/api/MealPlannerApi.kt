@@ -3,6 +3,7 @@ package com.finploit.android.data.api
 import com.finploit.android.data.dto.AddShoppingItemRequest
 import com.finploit.android.data.dto.GeneratePlanRequest
 import com.finploit.android.data.dto.MealPlanDayDto
+import com.finploit.android.data.dto.ManualMealPlanRequest
 import com.finploit.android.data.dto.MealPlanDto
 import com.finploit.android.data.dto.MealPreferencesDto
 import com.finploit.android.data.dto.MealShoppingItemDto
@@ -50,6 +51,10 @@ interface MealPlannerApi {
 
     @POST("meal-planner/generate")
     suspend fun generatePlan(@Body request: GeneratePlanRequest): MealPlanDto
+
+    /** Um cardápio escrito à mão — mesmo modelo, mesma lista, sem IA. */
+    @POST("meal-planner/manual")
+    suspend fun createManualPlan(@Body request: ManualMealPlanRequest): MealPlanDto
 
     @PATCH("meal-planner/item/{id}/toggle")
     suspend fun toggleItem(@Path("id") id: Int): MealShoppingItemDto

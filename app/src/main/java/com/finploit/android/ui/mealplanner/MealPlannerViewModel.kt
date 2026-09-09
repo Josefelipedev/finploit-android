@@ -10,6 +10,9 @@ import com.finploit.android.data.dto.MealPlanDayDto
 import com.finploit.android.data.dto.MealPlanDto
 import com.finploit.android.data.dto.MealShoppingItemDto
 import com.finploit.android.data.dto.FoodBudgetPartDto
+import com.finploit.android.data.dto.ManualMealPlanDay
+import com.finploit.android.data.dto.ManualMealPlanRequest
+import com.finploit.android.data.dto.ManualShoppingItem
 import com.finploit.android.data.dto.PreferenceOptionsDto
 import com.finploit.android.data.dto.SavePreferencesRequest
 import com.finploit.android.data.dto.ScheduleItemDto
@@ -156,6 +159,15 @@ data class MealPlannerUiState(
     /** As metas do casal, à vista e identificadas, mas nunca somadas. */
     val foodBudgetParts: List<FoodBudgetPartDto> = emptyList(),
     val foodBudgetCurrency: String? = null,
+    // ── Plano manual e o sinal dos preços usados ────────────────────────────
+    val showManualPlanDialog: Boolean = false,
+    val isCreatingManualPlan: Boolean = false,
+    /**
+     * Quantos preços desta pessoa a IA usou na última geração. Sem isto, quem
+     * escreve o que pagou item a item nunca fica a saber que aquilo serviu para
+     * alguma coisa.
+     */
+    val paidPricesUsed: Int? = null,
 )
 
 enum class MealTab { PLAN, SHOPPING, SCHEDULE, PREFERENCES, HISTORY }
@@ -370,6 +382,52 @@ class MealPlannerViewModel @Inject constructor(
         )
     }
 
+    fun showManualPlanDialog(show: Boolean) {
+        _uiState.value = _uiState.value.copy(showManualPlanDialog = show)
+    }
+
+    /**
+     * Cria um cardápio escrito à mão.
+     *
+     * Passa pelo mesmo `savePlan` do servidor que a geração por IA, portanto o
+     * plano manual tem lista de compras, fecha em despesa e conta para o
+     * orçamento exactamente como o gerado — não é um caso à parte.
+     */
+    fun createManualPlan(
+        days: List<ManualMealPlanDay>,
+        shoppingList: List<ManualShoppingItem>,
+        notes: String?,
+    ) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isCreatingManualPlan = true, error = null)
+            repository.createManualPlan(
+                ManualMealPlanRequest(
+                    days = days,
+                    // Sem orçamento no pedido, o servidor usa a meta desta
+                    // pessoa — o mesmo caminho da geração por IA.
+                    budget = null,
+                    notes = notes?.takeIf { it.isNotBlank() },
+                    shoppingList = shoppingList.takeIf { it.isNotEmpty() },
+                ),
+            )
+                .onSuccess { plan ->
+                    _uiState.value = _uiState.value.copy(
+                        plan = plan,
+                        isCreatingManualPlan = false,
+                        showManualPlanDialog = false,
+                        tab = MealTab.PLAN,
+                        snackbarMessage = "Cardápio criado.",
+                    )
+                }
+                .onFailure { e ->
+                    _uiState.value = _uiState.value.copy(
+                        isCreatingManualPlan = false,
+                        error = e.message ?: "Não foi possível criar o cardápio.",
+                    )
+                }
+        }
+    }
+
     fun selectBudget(preset: BudgetPreset) {
         _uiState.value = _uiState.value.copy(budget = preset)
         viewModelScope.launch { preferencesRepository.setBudgetPreset(preset.name) }
@@ -527,11 +585,20 @@ class MealPlannerViewModel @Inject constructor(
             )
                 .onSuccess { plan ->
                     grocerySearchRepository.clearCachedEnrichedItems()
+                    // Dizer que os preços dela foram usados (F5): sem isto, quem
+                    // escreve o que pagou item a item nunca fica a saber que
+                    // aquilo serviu para alguma coisa.
+                    val usados = plan.paidPricesUsed ?: 0
                     _uiState.value = _uiState.value.copy(
                         isGenerating = false,
                         plan = plan,
                         enrichedItems = emptyMap(),
-                        snackbarMessage = "Cardápio gerado com sucesso! 🥗",
+                        paidPricesUsed = plan.paidPricesUsed,
+                        snackbarMessage = if (usados > 0) {
+                            "Cardápio gerado com $usados ${if (usados == 1) "preço teu" else "preços teus"}! 🥗"
+                        } else {
+                            "Cardápio gerado com sucesso! 🥗"
+                        },
                     )
                 }
                 .onFailure { e ->

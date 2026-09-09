@@ -101,6 +101,11 @@ fun MealShoppingItemDto.parsedUsedInDays(): List<Int> = try {
 } catch (_: Exception) { emptyList() }
 
 data class MealPlanDto(
+    /**
+     * Quantos preços que ESTA pessoa pagou a IA usou nesta geração (F5).
+     * Só vem na resposta da geração, não ao reler o plano.
+     */
+    val paidPricesUsed: Int? = null,
     val id: Int,
     /**
      * Quem gerou o plano. O cardápio é do casal — um plano ativo de cada vez,
@@ -245,4 +250,34 @@ data class PreferenceOptionDto(val value: String, val label: String)
 data class PreferenceOptionsDto(
     val cuisineStyles: List<PreferenceOptionDto> = emptyList(),
     val dietGoals: List<PreferenceOptionDto> = emptyList(),
+)
+
+/** Um dia escrito à mão: só os nomes das refeições, sem IA pelo meio. */
+data class ManualMealPlanDay(
+    val dayOfWeek: Int,
+    val breakfast: String? = null,
+    val lunch: String? = null,
+    val dinner: String? = null,
+    val snacks: String? = null,
+)
+
+data class ManualShoppingItem(
+    val name: String,
+    val quantity: Double? = null,
+    val unit: String? = null,
+    val estimatedPrice: Double? = null,
+    val category: String? = null,
+)
+
+/**
+ * Escrever o cardápio à mão, sem gastar uma geração de IA.
+ *
+ * Passa pelo mesmo `savePlan` do servidor, portanto o plano manual tem lista de
+ * compras, fecha em despesa e conta para o orçamento exactamente como o gerado.
+ */
+data class ManualMealPlanRequest(
+    val days: List<ManualMealPlanDay>,
+    val budget: Double? = null,
+    val notes: String? = null,
+    val shoppingList: List<ManualShoppingItem>? = null,
 )

@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.finploit.android.data.api.EnrichItem
+import com.finploit.android.ui.theme.currencyConfigByCode
 import com.finploit.android.ui.theme.BackgroundDark
 import com.finploit.android.ui.theme.CardBackground
 import com.finploit.android.ui.theme.GreenPrimary
@@ -194,6 +195,7 @@ fun MealPlannerScreen(
                         onCustomBudgetChange = viewModel::setCustomBudgetText,
                         weeklyFoodBudget = state.weeklyFoodBudget,
                         onOpenPreferences = { viewModel.setTab(MealTab.PREFERENCES) },
+                        onWriteManually = { viewModel.showManualPlanDialog(true) },
                         cuisineStyle = state.cuisineStyle,
                         dietGoal = state.dietGoal,
                         cuisineLabel = state.preferenceOptions.cuisineStyles.find { it.value == state.cuisineStyle }?.label.orEmpty(),
@@ -291,6 +293,17 @@ fun MealPlannerScreen(
                     )
                 }
             }
+        }
+
+        if (state.showManualPlanDialog) {
+            ManualPlanDialog(
+                isSaving = state.isCreatingManualPlan,
+                currencySymbol = currencyConfigByCode(currencyCode).symbol,
+                onDismiss = { viewModel.showManualPlanDialog(false) },
+                onConfirm = { dias, lista, notas ->
+                    viewModel.createManualPlan(dias, lista, notas)
+                },
+            )
         }
     }
 }
