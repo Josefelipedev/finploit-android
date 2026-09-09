@@ -45,8 +45,11 @@ import com.finploit.android.ui.theme.CardBackground
 import com.finploit.android.ui.theme.CardElevated
 import com.finploit.android.ui.theme.ExpenseRed
 import com.finploit.android.ui.theme.GreenPrimary
+import com.finploit.android.data.dto.FoodBudgetPartDto
 import com.finploit.android.ui.theme.TextDisabled
+import com.finploit.android.ui.theme.currencyConfigByCode
 import com.finploit.android.ui.theme.TextPrimary
+import com.finploit.android.ui.theme.TextSecondary
 
 /** "2.5" instead of "2.5000000001"; whole numbers drop the decimal. */
 fun formatServings(value: Double): String =
@@ -259,6 +262,116 @@ private fun <T> FlowChips(items: List<T>, chip: @Composable (T) -> Unit) {
     }
 }
 
+/**
+ * A meta de comida desta pessoa.
+ *
+ * Aqui viviam valores fixos escritos no código do telemóvel — 50 €/semana em
+ * "Equilibrado" — guardados no DataStore, perdidos ao reinstalar e invisíveis
+ * para o cônjuge. Agora o número é escrito uma vez, fica no servidor, e é ele
+ * que manda no orçamento do cardápio e no tecto da categoria Alimentação.
+ *
+ * **A meta é de cada pessoa.** Num casal, a compra consome o tecto de quem a
+ * registou; os dois tectos aparecem lado a lado e nunca são somados.
+ */
+@Composable
+private fun FoodBudgetCard(
+    monthly: Double?,
+    weekly: Double?,
+    currency: String?,
+    parts: List<FoodBudgetPartDto>,
+    onSet: (Double?) -> Unit,
+) {
+    val cfg = currencyConfigByCode(currency ?: "BRL")
+    // O campo é de quem escreve enquanto escreve; só se reformata quando o
+    // valor muda de fora (outro dispositivo, ou o "Ainda não sei").
+    var texto by rememberSaveable(monthly) {
+        mutableStateOf(monthly?.let { if (it % 1.0 == 0.0) it.toInt().toString() else it.toString() } ?: "")
+    }
+
+    SectionCard(
+        "💶",
+        "Quanto contas gastar em comida",
+        "Por mês, e só a tua parte. É esta meta que o cardápio usa como orçamento da semana.",
+    ) {
+        OutlinedTextField(
+            value = texto,
+            onValueChange = { entrada ->
+                texto = entrada.filter { it.isDigit() || it == '.' || it == ',' }
+                texto.replace(',', '.').toDoubleOrNull()?.let(onSet)
+            },
+            label = { Text("Meta mensal (${cfg.symbol})", fontSize = 12.sp) },
+            placeholder = { Text("ex: 300", color = TextDisabled, fontSize = 13.sp) },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
+            modifier = Modifier.fillMaxWidth(),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = GreenPrimary,
+                unfocusedBorderColor = TextDisabled.copy(alpha = 0.4f),
+                focusedTextColor = TextPrimary,
+                unfocusedTextColor = TextPrimary,
+            ),
+        )
+
+        if (monthly != null) {
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "Ainda não sei",
+                color = GreenPrimary,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.clickable {
+                    texto = ""
+                    onSet(null)
+                },
+            )
+        } else {
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "Sem meta, o cardápio decide sozinho — a app prefere dizer que não sabe a inventar um número.",
+                color = TextDisabled,
+                fontSize = 11.sp,
+            )
+        }
+
+        if (weekly != null) {
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "São ${cfg.format(weekly)} por semana — é este o valor que chega ao cardápio.",
+                color = TextSecondary,
+                fontSize = 11.sp,
+            )
+        }
+
+        // Num casal, ver o tecto do outro sem os somar: é a diferença entre
+        // saber onde se está e ter um número imposto por quem não o escreveu.
+        val outros = parts.filter { it.userId != 0 }
+        if (outros.size > 1) {
+            Spacer(Modifier.height(10.dp))
+            Text("Em casa", color = TextDisabled, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(4.dp))
+            outros.forEach { parte ->
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(parte.name, color = TextSecondary, fontSize = 12.sp)
+                    Text(
+                        if (parte.answered && parte.amount != null) cfg.format(parte.amount) else "por responder",
+                        color = if (parte.answered) TextPrimary else TextDisabled,
+                        fontSize = 12.sp,
+                    )
+                }
+            }
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "Cada um tem o seu tecto. A compra consome o de quem a registou — não se somam.",
+                color = TextDisabled,
+                fontSize = 10.sp,
+            )
+        }
+    }
+}
+
 @Composable
 fun MealPlannerPreferencesTab(
     adults: Int,
@@ -277,12 +390,29 @@ fun MealPlannerPreferencesTab(
     onRemoveFavoriteFood: (String) -> Unit,
     onAddDislikedFood: (String) -> Unit,
     onRemoveDislikedFood: (String) -> Unit,
+    /** A meta mensal desta pessoa. Nulo = ainda não respondeu. */
+    monthlyFoodBudget: Double? = null,
+    weeklyFoodBudget: Double? = null,
+    foodBudgetCurrency: String? = null,
+    /** As metas do casal, à vista mas nunca somadas. */
+    foodBudgetParts: List<FoodBudgetPartDto> = emptyList(),
+    /** `null` apaga a meta ("ainda não sei"). */
+    onSetMonthlyFoodBudget: (Double?) -> Unit = {},
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 14.dp),
     ) {
+        item {
+            FoodBudgetCard(
+                monthly = monthlyFoodBudget,
+                weekly = weeklyFoodBudget,
+                currency = foodBudgetCurrency,
+                parts = foodBudgetParts,
+                onSet = onSetMonthlyFoodBudget,
+            )
+        }
         item {
             SectionCard("🏠", "Quem come em casa", "As receitas e as compras são multiplicadas para a casa toda.") {
                 CounterRow("Adultos", "Porção inteira cada", adults, min = 1) { onSetHousehold(it, children) }

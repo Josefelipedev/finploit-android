@@ -100,8 +100,24 @@ fun BudgetLimitsScreen(
                     }
                 }
                 items(state.limits) { limit ->
-                    val spent =
-                        state.monthlySummary[limit.categoryName.orEmpty().trim().lowercase()] ?: 0.0
+                    /*
+                      O gasto vem do SERVIDOR, somado uma vez só. Eram três
+                      contas para a mesma pergunta — esta, a da web e a do plano
+                      de dívidas — e três sítios onde divergir.
+
+                      E o tecto que vem da meta de alimentação conta a comida
+                      TODA, não só a da sua categoria: as compras podem estar
+                      noutra categoria, e sem isso o ecrã dizia "meta 300, gasto
+                      0" a quem já tinha gasto.
+
+                      O recuo para o resumo local só serve para uma API antiga:
+                      sem ele, um servidor por atualizar mostrava zero gasto em
+                      todas as categorias.
+                    */
+                    val spent = limit.spent
+                        ?: state.monthlySummary[limit.categoryName.orEmpty().trim().lowercase()]
+                        ?: 0.0
+                    val fromFoodBudget = limit.source == "food_budget"
                     val progress = if (limit.monthlyLimit > 0) (spent / limit.monthlyLimit).coerceIn(0.0, 1.0) else 0.0
                     val isOverBudget = spent > limit.monthlyLimit
                     val isNearLimit = progress >= limit.alertAt / 100.0
@@ -113,8 +129,12 @@ fun BudgetLimitsScreen(
                         progress = progress.toFloat(),
                         isOverBudget = isOverBudget,
                         isNearLimit = isNearLimit,
-                        onEdit = { viewModel.showAddDialog(limit) },
-                        onDelete = { viewModel.delete(limit.categoryId) },
+                        // Um tecto que nasceu da meta não se edita nem se apaga
+                        // aqui: o servidor recusa, e oferecer os botões seria
+                        // oferecer um caminho que acaba num erro.
+                        onEdit = if (fromFoodBudget) null else ({ viewModel.showAddDialog(limit) }),
+                        onDelete = if (fromFoodBudget) null else ({ viewModel.delete(limit.categoryId) }),
+                        fromFoodBudget = fromFoodBudget,
                     )
                 }
                 item { Spacer(Modifier.height(80.dp)) }
@@ -144,8 +164,10 @@ private fun BudgetLimitCard(
     progress: Float,
     isOverBudget: Boolean,
     isNearLimit: Boolean,
-    onEdit: () -> Unit,
-    onDelete: () -> Unit,
+    /** `null` = este tecto não se edita aqui (veio da meta de alimentação). */
+    onEdit: (() -> Unit)?,
+    onDelete: (() -> Unit)?,
+    fromFoodBudget: Boolean = false,
 ) {
     val color = when {
         isOverBudget -> ExpenseRed
@@ -184,12 +206,23 @@ private fun BudgetLimitCard(
                             fontSize = 11.sp,
                         )
                     }
+                    if (fromFoodBudget) {
+                        Text(
+                            "🍽 da tua meta de alimentação",
+                            color = GreenPrimary,
+                            fontSize = 11.sp,
+                        )
+                    }
                 }
-                IconButton(onClick = onEdit) {
-                    Icon(Icons.Default.Edit, contentDescription = "Editar", tint = TextDisabled, modifier = Modifier.size(18.dp))
+                if (onEdit != null) {
+                    IconButton(onClick = onEdit) {
+                        Icon(Icons.Default.Edit, contentDescription = "Editar", tint = TextDisabled, modifier = Modifier.size(18.dp))
+                    }
                 }
-                IconButton(onClick = onDelete) {
-                    Icon(Icons.Default.Delete, contentDescription = "Apagar", tint = ExpenseRed.copy(alpha = 0.7f), modifier = Modifier.size(18.dp))
+                if (onDelete != null) {
+                    IconButton(onClick = onDelete) {
+                        Icon(Icons.Default.Delete, contentDescription = "Apagar", tint = ExpenseRed.copy(alpha = 0.7f), modifier = Modifier.size(18.dp))
+                    }
                 }
             }
             Spacer(Modifier.height(10.dp))

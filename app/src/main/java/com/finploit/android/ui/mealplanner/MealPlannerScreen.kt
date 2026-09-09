@@ -192,6 +192,8 @@ fun MealPlannerScreen(
                         tdee = state.tdee,
                         customBudgetText = state.customBudgetText,
                         onCustomBudgetChange = viewModel::setCustomBudgetText,
+                        weeklyFoodBudget = state.weeklyFoodBudget,
+                        onOpenPreferences = { viewModel.setTab(MealTab.PREFERENCES) },
                         cuisineStyle = state.cuisineStyle,
                         dietGoal = state.dietGoal,
                         cuisineLabel = state.preferenceOptions.cuisineStyles.find { it.value == state.cuisineStyle }?.label.orEmpty(),
@@ -202,6 +204,7 @@ fun MealPlannerScreen(
                         planCurrency = state.plan?.currency,
                         items = state.plan?.shoppingList?.items ?: emptyList(),
                         totalEstimate = state.plan?.shoppingList?.totalEstimate,
+                        budgetComparison = state.plan?.shoppingList?.budgetComparison,
                         tips = state.plan?.tips,
                         onToggle = viewModel::toggleItem,
                         onSearchPrices = onSearchPrices,
@@ -269,6 +272,11 @@ fun MealPlannerScreen(
                         onRemoveFavoriteFood = viewModel::removeFavoriteFood,
                         onAddDislikedFood = viewModel::addDislikedFood,
                         onRemoveDislikedFood = viewModel::removeDislikedFood,
+                        monthlyFoodBudget = state.monthlyFoodBudget,
+                        weeklyFoodBudget = state.weeklyFoodBudget,
+                        foodBudgetCurrency = state.foodBudgetCurrency ?: currencyCode,
+                        foodBudgetParts = state.foodBudgetParts,
+                        onSetMonthlyFoodBudget = viewModel::setMonthlyFoodBudget,
                     )
                     MealTab.HISTORY -> HistoryTab(
                         plans = state.allPlans,

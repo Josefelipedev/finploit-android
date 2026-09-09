@@ -72,6 +72,28 @@ data class MealShoppingListDto(
     // History-only fields (items list is omitted in getAllPlans for performance)
     val totalItems: Int? = null,
     val purchasedCount: Int? = null,
+    /**
+     * O que vai comprado contra o orçamento da semana (F4). Enquanto a lista
+     * está aberta conta só o que já foi marcado — é esse o número que responde
+     * a "ainda posso pôr isto no carrinho?".
+     */
+    val budgetComparison: BudgetComparisonDto? = null,
+)
+
+/**
+ * O orçado contra o real. `status` vale `no_budget`, `under`, `close` ou `over`.
+ *
+ * **`no_budget` não é orçamento zero.** O primeiro diz "ninguém combinou nada",
+ * o segundo diz "não gastes nada" — e um ecrã que os confunde anuncia que se
+ * estourou o orçamento a quem nunca definiu nenhum. Por isso `budget`, `delta`
+ * e `usedPct` vêm nulos nesse caso.
+ */
+data class BudgetComparisonDto(
+    val budget: Double? = null,
+    val spent: Double = 0.0,
+    val delta: Double? = null,
+    val usedPct: Double? = null,
+    val status: String = "no_budget",
 )
 
 fun MealShoppingItemDto.parsedUsedInDays(): List<Int> = try {
@@ -161,6 +183,39 @@ data class MealPreferencesDto(
     val onboarded: Boolean = false,
     /** Adult-equivalent portions, computed by the API from adults + children. */
     val servings: Double = 1.0,
+    /**
+     * A meta de comida DESTA pessoa, por mês. Nulo = ainda não respondeu, que
+     * não é o mesmo que ter respondido zero.
+     *
+     * É pessoal e não da casa: num casal cada um tem o seu tecto, e a compra
+     * consome o de quem a registou. Os dois nunca são somados.
+     */
+    val monthlyFoodBudget: Double? = null,
+    val foodBudgetCurrency: String? = null,
+    /** A mesma meta por semana — é como o cardápio pensa (`× 12 ÷ 52`). */
+    val weeklyFoodBudget: Double? = null,
+    /** As metas do casal, à vista e identificadas, mas nunca somadas. */
+    val foodBudget: FoodBudgetOverviewDto? = null,
+)
+
+data class FoodBudgetPartDto(
+    val userId: Int = 0,
+    val name: String = "",
+    /** Já convertido para a moeda de quem lê. Nulo enquanto não responder. */
+    val amount: Double? = null,
+    val nativeAmount: Double? = null,
+    val nativeCurrency: String? = null,
+    val answered: Boolean = false,
+)
+
+data class FoodBudgetOverviewDto(
+    /** A meta de quem está autenticado. Nulo = ainda não respondeu. */
+    val monthly: Double? = null,
+    val weekly: Double? = null,
+    val parts: List<FoodBudgetPartDto> = emptyList(),
+    val partial: Boolean = false,
+    val complete: Boolean = false,
+    val currency: String? = null,
 )
 
 data class SavePreferencesRequest(
@@ -172,6 +227,17 @@ data class SavePreferencesRequest(
     val dislikedFoods: List<String>? = null,
     val mealPrepMode: Boolean? = null,
     val markOnboarded: Boolean? = null,
+    /** A meta mensal desta pessoa. Omitir não mexe. */
+    val monthlyFoodBudget: Double? = null,
+    /**
+     * Apagar a meta ("ainda não sei").
+     *
+     * Existe porque o Gson **omite os nulos**: mandar `monthlyFoodBudget = null`
+     * daqui produz exactamente o mesmo corpo que não mandar nada, e o servidor
+     * não teria como distinguir "apaga" de "não mexas". Sem esta bandeira, o
+     * botão "Ainda não sei" existiria e não faria nada.
+     */
+    val clearFoodBudget: Boolean? = null,
 )
 
 data class PreferenceOptionDto(val value: String, val label: String)

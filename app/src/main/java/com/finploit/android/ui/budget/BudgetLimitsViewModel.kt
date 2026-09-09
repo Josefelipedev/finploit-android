@@ -16,7 +16,16 @@ data class BudgetUiState(
     val limits: List<BudgetLimitDto> = emptyList(),
     /** As categorias do workspace, para escolher a que leva limite. */
     val categories: List<FinanceCategoryDto> = emptyList(),
-    /** categoria (em minúsculas) -> gasto do mês, na moeda do utilizador */
+    /**
+     * categoria (em minúsculas) -> gasto do mês, na moeda do utilizador.
+     *
+     * **Recuo.** O gasto passou a vir do próprio limite (`BudgetLimitDto.spent`),
+     * somado no servidor: eram três contas para a mesma pergunta — esta, a da
+     * web e a do plano de dívidas — e três sítios onde divergir. Isto fica para
+     * o caso de a API ainda não devolver `spent`; sem o recuo, um servidor por
+     * atualizar mostrava **zero gasto em todas as categorias**, que é a mentira
+     * mais perigosa que um ecrã de orçamento pode contar.
+     */
     val monthlySummary: Map<String, Double> = emptyMap(),
     val displayCurrency: String? = null,
     val unconvertedCurrencies: List<String> = emptyList(),

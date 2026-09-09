@@ -1,6 +1,7 @@
 package com.finploit.android.data.api
 
 import com.finploit.android.data.dto.BudgetLimitDto
+import com.finploit.android.data.dto.FoodSpendDto
 import com.finploit.android.data.dto.SetBudgetLimitRequest
 import retrofit2.Response
 import retrofit2.http.Body
@@ -25,6 +26,16 @@ interface BudgetApi {
         @Path("categoryId") categoryId: Int,
         @Body request: SetBudgetLimitRequest,
     ): BudgetLimitDto
+
+    /**
+     * O gasto em comida do mês contra a meta pessoal.
+     *
+     * Não é a soma de uma categoria: uma lista de compras fechada é comida
+     * venha na categoria que vier, e um supermercado lançado como conta a pagar
+     * também.
+     */
+    @GET("budget/food")
+    suspend fun getFoodSpend(): FoodSpendDto
 
     @DELETE("budget/{categoryId}")
     suspend fun delete(@Path("categoryId") categoryId: Int): Response<Unit>

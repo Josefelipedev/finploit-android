@@ -9,6 +9,7 @@ import com.finploit.android.data.dto.MealDetailDto
 import com.finploit.android.data.dto.MealPlanDayDto
 import com.finploit.android.data.dto.MealPlanDto
 import com.finploit.android.data.dto.MealShoppingItemDto
+import com.finploit.android.data.dto.FoodBudgetPartDto
 import com.finploit.android.data.dto.PreferenceOptionsDto
 import com.finploit.android.data.dto.SavePreferencesRequest
 import com.finploit.android.data.dto.ScheduleItemDto
@@ -43,17 +44,36 @@ enum class BudgetPreset(val label: String, val description: String) {
     CUSTOM("Personalizado", "valor à minha escolha"),
 }
 
-// Budget amounts per currency code — only currencies present in the Prisma CurrencyType enum
-private val BUDGET_AMOUNTS = mapOf(
-    "BRL" to mapOf(BudgetPreset.ECONOMY to 80.0, BudgetPreset.BALANCED to 150.0, BudgetPreset.PREMIUM to 280.0),
-    "EUR" to mapOf(BudgetPreset.ECONOMY to 25.0, BudgetPreset.BALANCED to 50.0, BudgetPreset.PREMIUM to 90.0),
-    "USD" to mapOf(BudgetPreset.ECONOMY to 30.0, BudgetPreset.BALANCED to 60.0, BudgetPreset.PREMIUM to 100.0),
-    "GBP" to mapOf(BudgetPreset.ECONOMY to 25.0, BudgetPreset.BALANCED to 50.0, BudgetPreset.PREMIUM to 85.0),
-    "JPY" to mapOf(BudgetPreset.ECONOMY to 4000.0, BudgetPreset.BALANCED to 8000.0, BudgetPreset.PREMIUM to 15000.0),
+/**
+ * Quanto cada preset vale, em proporção da meta semanal da pessoa.
+ *
+ * Aqui viviam **valores fixos escritos no código** — 50 €/semana em
+ * "Equilibrado", 150 R$, e por aí — guardados no DataStore do telemóvel. Eram
+ * um dos cinco números da plataforma a dizer que eram "o orçamento da comida",
+ * e o único que não sobrevivia a reinstalar a app nem era visto pelo cônjuge.
+ *
+ * Agora o valor é a meta que a pessoa escreveu, e os presets são o que sempre
+ * quiseram ser: apertar ou aliviar em relação a ela.
+ */
+private val BUDGET_FACTORS = mapOf(
+    BudgetPreset.ECONOMY to 0.8,
+    BudgetPreset.BALANCED to 1.0,
+    BudgetPreset.PREMIUM to 1.8,
 )
 
-fun BudgetPreset.amountForCurrency(currencyCode: String): Double? =
-    BUDGET_AMOUNTS[currencyCode]?.get(this) ?: BUDGET_AMOUNTS["BRL"]?.get(this)
+/**
+ * O orçamento desta geração, a partir da meta semanal.
+ *
+ * `null` quando não há meta — e nesse caso o servidor decide (usa a meta dele,
+ * ou deixa a IA estimar). Inventar aqui um número por moeda era o que fazia o
+ * telemóvel discordar da web sobre quanto se pode gastar em comida.
+ */
+fun BudgetPreset.amountFromWeeklyTarget(weeklyTarget: Double?): Double? {
+    if (this == BudgetPreset.FREE) return null
+    val target = weeklyTarget ?: return null
+    val factor = BUDGET_FACTORS[this] ?: return null
+    return kotlin.math.round(target * factor * 100) / 100
+}
 
 data class MealPlannerUiState(
     val isLoading: Boolean = false,
@@ -128,6 +148,14 @@ data class MealPlannerUiState(
     val servings: Double = 1.0,
     val preferenceOptions: PreferenceOptionsDto = PreferenceOptionsDto(),
     val isSavingPreferences: Boolean = false,
+    // ── A meta de comida, pessoal e vinda do servidor ────────────────────────
+    /** Nulo = ainda não respondeu. Diferente de ter respondido zero. */
+    val monthlyFoodBudget: Double? = null,
+    /** A mesma meta por semana — é como o cardápio pensa. */
+    val weeklyFoodBudget: Double? = null,
+    /** As metas do casal, à vista e identificadas, mas nunca somadas. */
+    val foodBudgetParts: List<FoodBudgetPartDto> = emptyList(),
+    val foodBudgetCurrency: String? = null,
 )
 
 enum class MealTab { PLAN, SHOPPING, SCHEDULE, PREFERENCES, HISTORY }
@@ -324,6 +352,24 @@ class MealPlannerViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Grava a meta de comida desta pessoa.
+     *
+     * `null` apaga-a — e apagar tem de ir pela bandeira `clearFoodBudget`, e não
+     * por um `monthlyFoodBudget = null`: o Gson **omite os nulos**, portanto
+     * esse corpo seria indistinguível de "não mexas na meta" e o botão "Ainda
+     * não sei" não faria nada.
+     */
+    fun setMonthlyFoodBudget(value: Double?) {
+        persistPreferences(
+            if (value == null) {
+                SavePreferencesRequest(clearFoodBudget = true)
+            } else {
+                SavePreferencesRequest(monthlyFoodBudget = value)
+            },
+        )
+    }
+
     fun selectBudget(preset: BudgetPreset) {
         _uiState.value = _uiState.value.copy(budget = preset)
         viewModelScope.launch { preferencesRepository.setBudgetPreset(preset.name) }
@@ -366,6 +412,10 @@ class MealPlannerViewModel @Inject constructor(
                     dislikedFoods = prefs.dislikedFoods,
                     mealPrepMode = prefs.mealPrepMode,
                     servings = prefs.servings,
+                    monthlyFoodBudget = prefs.monthlyFoodBudget,
+                    weeklyFoodBudget = prefs.weeklyFoodBudget ?: prefs.foodBudget?.weekly,
+                    foodBudgetParts = prefs.foodBudget?.parts.orEmpty(),
+                    foodBudgetCurrency = prefs.foodBudgetCurrency ?: prefs.foodBudget?.currency,
                 )
             }
         }
@@ -418,6 +468,10 @@ class MealPlannerViewModel @Inject constructor(
                         dislikedFoods = prefs.dislikedFoods,
                         mealPrepMode = prefs.mealPrepMode,
                         servings = prefs.servings,
+                        monthlyFoodBudget = prefs.monthlyFoodBudget,
+                        weeklyFoodBudget = prefs.weeklyFoodBudget ?: prefs.foodBudget?.weekly,
+                        foodBudgetParts = prefs.foodBudget?.parts.orEmpty(),
+                        foodBudgetCurrency = prefs.foodBudgetCurrency ?: prefs.foodBudget?.currency,
                     )
                 }
                 .onFailure {
@@ -453,7 +507,9 @@ class MealPlannerViewModel @Inject constructor(
             val amount = if (_uiState.value.budget == BudgetPreset.CUSTOM) {
                 _uiState.value.customBudgetText.toDoubleOrNull()
             } else {
-                _uiState.value.budget.amountForCurrency(code)
+                // Sem meta o resultado é `null`, e o servidor decide — em vez de
+                // o telemóvel inventar um número que a web desconhece.
+                _uiState.value.budget.amountFromWeeklyTarget(_uiState.value.weeklyFoodBudget)
             }
             val badMeals = extractMealNames(_uiState.value.mealRatings.filter { it.value == -1 }.keys.toSet()).takeIf { it.isNotEmpty() }
             val favoriteMeals = extractMealNames(_uiState.value.favoriteMeals).takeIf { it.isNotEmpty() }

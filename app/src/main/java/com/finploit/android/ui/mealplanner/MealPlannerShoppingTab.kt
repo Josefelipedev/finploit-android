@@ -69,6 +69,7 @@ import com.finploit.android.data.dto.MealShoppingItemDto
 import com.finploit.android.data.dto.parsedUsedInDays
 import com.finploit.android.ui.theme.BackgroundDark
 import com.finploit.android.ui.theme.CardBackground
+import com.finploit.android.ui.theme.ExpenseRed
 import com.finploit.android.ui.theme.GreenPrimary
 import com.finploit.android.ui.theme.IncomeGreen
 import com.finploit.android.ui.theme.LocalCurrencyConfig
@@ -77,6 +78,7 @@ import com.finploit.android.ui.theme.TextPrimary
 import com.finploit.android.ui.theme.TextSecondary
 import com.finploit.android.util.filterAmountInput
 import com.finploit.android.util.parseAmountInput
+import com.finploit.android.data.dto.BudgetComparisonDto
 import com.finploit.android.ui.theme.currencyConfigByCode
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -85,6 +87,12 @@ internal fun ShoppingTab(
     planCurrency: String? = null,
     items: List<MealShoppingItemDto>,
     totalEstimate: Double?,
+    /**
+     * O que vai comprado contra o orçamento da semana (F4). Aparece ENQUANTO a
+     * lista está aberta: estourar o orçamento era uma descoberta ao fechar,
+     * quando já não há nada a fazer com a informação.
+     */
+    budgetComparison: BudgetComparisonDto? = null,
     tips: String?,
     onToggle: (Int) -> Unit,
     onSearchPrices: (List<EnrichItem>) -> Unit = {},
@@ -367,6 +375,50 @@ internal fun ShoppingTab(
                             Text("Restante", color = TextDisabled, fontSize = 11.sp)
                             Text(currencyConfig.format(remainingEstimate), color = GreenPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                             totalEstimate?.let { Text("de ${currencyConfig.format(it)}", color = TextDisabled, fontSize = 11.sp) }
+                        }
+                    }
+                    // Sem orçamento definido não se mostra nada: anunciar "0%
+                    // usado" a quem nunca definiu uma meta é inventar-lhe uma.
+                    val comparacao = budgetComparison?.takeIf { it.status != "no_budget" && it.budget != null }
+                    if (comparacao != null) {
+                        Spacer(Modifier.height(10.dp))
+                        val cor = when (comparacao.status) {
+                            "over" -> ExpenseRed
+                            "close" -> Color(0xFFFFA726)
+                            else -> GreenPrimary
+                        }
+                        val fechada = closedAt != null
+                        Column(
+                            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
+                                .background(cor.copy(alpha = 0.12f)).padding(horizontal = 10.dp, vertical = 8.dp),
+                        ) {
+                            Text(
+                                "${if (fechada) "Custou" else "Vai em"} ${currencyConfig.format(comparacao.spent)} " +
+                                    "de ${currencyConfig.format(comparacao.budget ?: 0.0)} orçados",
+                                color = cor,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Text(
+                                if (comparacao.status == "over") {
+                                    "passou ${currencyConfig.format(kotlin.math.abs(comparacao.delta ?: 0.0))}"
+                                } else {
+                                    "sobram ${currencyConfig.format(comparacao.delta ?: 0.0)}"
+                                },
+                                color = cor.copy(alpha = 0.85f),
+                                fontSize = 11.sp,
+                            )
+                            Spacer(Modifier.height(5.dp))
+                            Box(
+                                modifier = Modifier.fillMaxWidth().height(5.dp)
+                                    .clip(RoundedCornerShape(3.dp)).background(cor.copy(alpha = 0.2f)),
+                            ) {
+                                val fracao = ((comparacao.usedPct ?: 0.0) / 100.0).coerceIn(0.0, 1.0).toFloat()
+                                if (fracao > 0f) {
+                                    Box(modifier = Modifier.fillMaxWidth(fracao).height(5.dp)
+                                        .clip(RoundedCornerShape(3.dp)).background(cor))
+                                }
+                            }
                         }
                     }
                     if (purchased == total && total > 0) {

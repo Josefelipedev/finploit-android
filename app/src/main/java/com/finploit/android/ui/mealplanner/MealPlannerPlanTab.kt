@@ -96,6 +96,13 @@ internal fun PlanTab(
     tdee: Int? = null,
     customBudgetText: String = "",
     onCustomBudgetChange: (String) -> Unit = {},
+    /**
+     * A meta semanal desta pessoa. Nulo = ainda não a definiu, e nesse caso os
+     * presets não têm por onde apertar nem aliviar — dizem-no em vez de
+     * inventarem um valor.
+     */
+    weeklyFoodBudget: Double? = null,
+    onOpenPreferences: () -> Unit = {},
 ) {
     val scheduleByDay = schedule.associateBy { it.dayOfWeek }
     val currencyConfig = LocalCurrencyConfig.current
@@ -207,7 +214,7 @@ internal fun PlanTab(
                             horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
                             Text(preset.label, color = if (isSelected) color else TextPrimary, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal, fontSize = 13.sp)
-                            val amount = preset.amountForCurrency(currencyCode)
+                            val amount = preset.amountFromWeeklyTarget(weeklyFoodBudget)
                             val desc = amount?.let { "~${currencyConfig.symbol}${it.toInt()}/sem" } ?: preset.description
                             Text(desc, color = if (isSelected) color.copy(alpha = 0.8f) else TextDisabled, fontSize = 11.sp)
                         }
@@ -359,7 +366,11 @@ internal fun PlanTab(
                 val planTotal = plan.shoppingList?.totalEstimate ?: 0.0
                 val itemCount = plan.shoppingList?.items?.size ?: 0
                 val dayCount = plan.days.size
-                val budgetAmount = selectedBudget.amountForCurrency(currencyCode)
+                val budgetAmount = if (selectedBudget == BudgetPreset.CUSTOM) {
+                    customBudgetText.toDoubleOrNull()
+                } else {
+                    selectedBudget.amountFromWeeklyTarget(weeklyFoodBudget)
+                }
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
